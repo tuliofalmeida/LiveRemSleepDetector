@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1060</width>
+    <height>578</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="MplWidget" name="data_widget" native="true">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>39</y>
+      <width>641</width>
+      <height>501</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QWidget" name="params_widget" native="true">
+    <property name="geometry">
+     <rect>
+      <x>700</x>
+      <y>40</y>
+      <width>331</width>
+      <height>481</height>
+     </rect>
+    </property>
+    <widget class="QPushButton" name="start_button">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>440</y>
+       <width>301</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Start</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="motion_channel">
+     <property name="geometry">
+      <rect>
+       <x>290</x>
+       <y>50</y>
+       <width>41</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>20</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label">
+     <property name="geometry">
+      <rect>
+       <x>160</x>
+       <y>100</y>
+       <width>41</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Sawasdee</family>
+      </font>
+     </property>
+     <property name="text">
+      <string>Theta</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="low_theta">
+     <property name="geometry">
+      <rect>
+       <x>140</x>
+       <y>130</y>
+       <width>41</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>4</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="low_delta">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>130</y>
+       <width>41</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>0</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_4">
+     <property name="geometry">
+      <rect>
+       <x>170</x>
+       <y>401</y>
+       <width>101</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Sawasdee</family>
+      </font>
+     </property>
+     <property name="text">
+      <string>Ratio Motion</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_5">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>60</y>
+       <width>91</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Sawasdee</family>
+      </font>
+     </property>
+     <property name="text">
+      <string>LFP Channel</string>
+     </property>
+    </widget>
+    <widget class="QSlider" name="ratio_motion">
+     <property name="geometry">
+      <rect>
+       <x>200</x>
+       <y>250</y>
+       <width>20</width>
+       <height>121</height>
+      </rect>
+     </property>
+     <property name="maximum">
+      <number>10</number>
+     </property>
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_6">
+     <property name="geometry">
+      <rect>
+       <x>170</x>
+       <y>60</y>
+       <width>111</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Sawasdee</family>
+      </font>
+     </property>
+     <property name="text">
+      <string>Motion Channel</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_2">
+     <property name="geometry">
+      <rect>
+       <x>50</x>
+       <y>100</y>
+       <width>41</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Sawasdee</family>
+      </font>
+     </property>
+     <property name="text">
+      <string>Delta</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="lfp_channel">
+     <property name="geometry">
+      <rect>
+       <x>120</x>
+       <y>50</y>
+       <width>41</width>
+       <height>30</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>20</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="update_params">
+     <property name="geometry">
+      <rect>
+       <x>240</x>
+       <y>130</y>
+       <width>89</width>
+       <height>61</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Update</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_3">
+     <property name="geometry">
+      <rect>
+       <x>80</x>
+       <y>401</y>
+       <width>81</width>
+       <height>17</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <family>Sawasdee</family>
+      </font>
+     </property>
+     <property name="text">
+      <string>Ratio LFP</string>
+     </property>
+    </widget>
+    <widget class="QSlider" name="ratio_lfp">
+     <property name="geometry">
+      <rect>
+       <x>110</x>
+       <y>250</y>
+       <width>20</width>
+       <height>121</height>
+      </rect>
+     </property>
+     <property name="maximum">
+      <number>10</number>
+     </property>
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="high_theta">
+     <property name="geometry">
+      <rect>
+       <x>190</x>
+       <y>130</y>
+       <width>41</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>12</string>
+     </property>
+    </widget>
+    <widget class="Line" name="line">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>0</y>
+       <width>20</width>
+       <height>531</height>
+      </rect>
+     </property>
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="high_delta">
+     <property name="geometry">
+      <rect>
+       <x>80</x>
+       <y>130</y>
+       <width>41</width>
+       <height>25</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>4</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_14">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>169</y>
+       <width>151</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Window Length(s)</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="window_length">
+     <property name="geometry">
+      <rect>
+       <x>190</x>
+       <y>160</y>
+       <width>41</width>
+       <height>25</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_15">
+     <property name="geometry">
+      <rect>
+       <x>26</x>
+       <y>20</y>
+       <width>111</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>No File loaded</string>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QLabel" name="label_7">
+    <property name="geometry">
+     <rect>
+      <x>440</x>
+      <y>10</y>
+      <width>181</width>
+      <height>17</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>REM sleep detector</string>
+    </property>
+   </widget>
+   <zorder>params_widget</zorder>
+   <zorder>data_widget</zorder>
+   <zorder>label_7</zorder>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QMenuBar" name="menuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1060</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionOpen"/>
+   </widget>
+   <widget class="QMenu" name="menuAbout">
+    <property name="title">
+     <string>About</string>
+    </property>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuAbout"/>
+  </widget>
+  <action name="actionOpen">
+   <property name="text">
+    <string>Open</string>
+   </property>
+  </action>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MplWidget</class>
+   <extends>QWidget</extends>
+   <header>mplwidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
