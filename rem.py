@@ -2,16 +2,20 @@ from scipy.stats import zscore
 from scipy import signal
 import numpy as np
 from numpy.random import Generator, MT19937
-import matplotlib.pyplot as plt
-import neuroseries as nts
-import scipy
-import bk
+from functools import lru_cache
+
 
 gen = Generator(MT19937(6))
 
 
+@lru_cache
+def make_sos_filter(order, low, high, btype, fs):
+    sos = signal.butter(order, [low, high], btype=btype, output='sos', fs=fs)
+    return sos
+
+
 def bandpass(sig, low, high, fs=1250, order=4):
-    sos = signal.butter(order, [low, high], btype='bandpass', output='sos', fs=fs)
+    sos = make_sos_filter(order, low, high, 'bandpass', fs)
     filtered = signal.sosfiltfilt(sos, sig)
     return filtered
 
@@ -23,7 +27,8 @@ def lowpass(sig, cut, fs=1250, order=4):
 
 
 def downsample(raw_sig, factor=16):
-    dwn = signal.decimate(raw_sig, factor, ftype='fir')
+    # This is the slowest part of it all
+    dwn = signal.decimate(raw_sig, factor, ftype='fir')  # FIR is slower than IIR
     return dwn
 
 
@@ -105,43 +110,7 @@ def generate_data(dur=60, fs=20000, noise=1):
     return lfp, acc
 
 
-def compute_graph(path, lfp_channel, motion_channel, start, end, low_delta, high_delta, low_theta,
-                  high_theta):
-    data = np.memmap(path, dtype=np.int16)
-    data = data.reshape((-1, 137))
-    t = np.arange(start, end, 1 / 20_000, dtype=np.float64)
-    print(t.shape)
-    lfp = nts.Tsd(t, data[np.int(start * 20_000):np.int(end * 20_000), lfp_channel], time_units='s')
-
-    motion = nts.Tsd(t, data[np.int(start * 20_000):np.int(end * 20_000), motion_channel],
-                     time_units='s')
-    # lfp = bk.load.lfp(self.lfp_channel,self.start,self.end,dat = True,frequency = 20_000)
-    # motion = bk.load.lfp(self.motion_channel,self.start,self.end,dat = True,frequency = 20_000)
-
-    lfp = scipy.signal.decimate(lfp.values, 16)
-    t_down = np.linspace(start, end, len(lfp))
-
-    print(lfp.shape)
-    lfp = nts.Tsd(t_down, lfp, time_units='s')
-
-    motion = scipy.signal.decimate(motion.values, 16)
-    motion = np.diff(motion, append=motion[-1])
-    motion = nts.Tsd(t_down, motion, time_units='s')
-
-    filt_theta = bk.signal.passband(lfp, low_theta, high_theta)
-    # filt_delta = bk.signal.passband(lfp,low_delta,high_delta)
-    filt_delta = bk.signal.lowpass(lfp, high_delta)
-
-    lfp = nts.Tsd(lfp.index.values, scipy.stats.zscore(lfp.values))
-    filt_theta_z = nts.Tsd(filt_theta.index.values, scipy.stats.zscore(filt_theta.values))
-    filt_delta_z = nts.Tsd(filt_delta.index.values, scipy.stats.zscore(filt_delta.values))
-
-    power_theta, _ = bk.signal.hilbert(filt_theta)
-    power_delta, _ = bk.signal.hilbert(filt_delta)
-
-    ratio = power_theta.values / power_delta.values
-    ratio = nts.Tsd(t_down, ratio, time_units='s')
-    # t = t+lfp.as_units('s').index.values[0]
-
-    return (lfp, filt_theta_z, filt_delta_z, ratio, motion)
-
+if __name__ == '__main__':
+    fake_lfp, fake_acc = generate_data(dur=5)
+    for _ in range(10):
+        is_sleeping(fake_lfp, fake_acc)
