@@ -32,20 +32,20 @@ def downsample(raw_sig, factor=16):
     return dwn
 
 
-def get_band_power(raw_sig, low, high, fs=20000, factor=16, order=4):
-    dwn_sig = downsample(raw_sig, factor)
-    dwn_fs = int(fs // factor)
+def get_band_power(dwn_sig, low, high, dwn_fs=1250, order=4):
     f_sig = bandpass(dwn_sig, low, high, dwn_fs, order)
     h_transf = signal.hilbert(f_sig)
     power = np.abs(h_transf) ** 2
-    return power
+    return f_sig, power
 
 
-def delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=20000):
-    theta_power = get_band_power(lfp, low_theta, high_theta, fs)
-    delta_power = get_band_power(lfp, low_delta, high_delta, fs)
+def delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=20000, factor=16):
+    dwn_sig = downsample(lfp, factor)
+    dwn_fs = int(fs // factor)
+    theta, theta_power = get_band_power(dwn_sig, low_theta, high_theta, dwn_fs)
+    delta, delta_power = get_band_power(dwn_sig, low_delta, high_delta, dwn_fs)
     ratio = zscore(theta_power) / zscore(delta_power)
-    return ratio
+    return ratio, theta, delta, dwn_sig
 
 
 def speed(acc_sig, factor=16, fs=20000):
@@ -59,9 +59,9 @@ def speed(acc_sig, factor=16, fs=20000):
 
 
 def is_sleeping(lfp, acc, low_delta=.1, high_delta=3, low_theta=4, high_theta=10, fs=20000):
-    ratio = delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=fs)
+    ratio, theta, delta, dwn_sig = delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=fs)
     motion = speed(acc, fs=fs)
-    return ratio, motion
+    return ratio, theta, delta, motion, dwn_sig
 
 
 def generate_data(dur=60, fs=20000, noise=1):
@@ -87,7 +87,8 @@ def generate_data(dur=60, fs=20000, noise=1):
 
     Returns
     -------
-
+    lfp: np.ndarray
+    acc: np.ndarray
     """
     n_pts = dur * fs
     end_time = n_pts / fs
@@ -112,5 +113,5 @@ def generate_data(dur=60, fs=20000, noise=1):
 
 if __name__ == '__main__':
     fake_lfp, fake_acc = generate_data(dur=5)
-    for _ in range(10):
-        is_sleeping(fake_lfp, fake_acc)
+    for _ in range(1):
+        r, t, d, m, dl = is_sleeping(fake_lfp, fake_acc)

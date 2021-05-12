@@ -11,7 +11,7 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 
-class Ui_MainWindow(object):
+class Ui_MainWindow(QtWidgets.QMainWindow):
     def setupUi(self, MainWindow):
         self.MainWindow = MainWindow
         MainWindow.setObjectName("MainWindow")
@@ -130,8 +130,8 @@ class Ui_MainWindow(object):
         self.actionOpen.setObjectName("actionOpen")
         self.menuFile.addAction(self.actionOpen)
         # self.menuBar.addAction(self.menuFile.menuAction())
-        self.menuBar.addAction(self.get_dat_file(MainWindow))
-        self.menuBar.addAction(self.menuAbout.menuAction())
+        # self.menuBar.addAction(self.get_dat_file)
+        # self.menuBar.addAction(self.menuAbout.menuAction)
 
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)

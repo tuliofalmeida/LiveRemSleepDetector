@@ -1,10 +1,13 @@
 # Imports
+import typing
+from typing import Optional
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import QTimer,QDateTime
+from PyQt5.QtCore import QTimer, QObject, pyqtSignal, QThread
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as Canvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.lines import Line2D
 import matplotlib
 import neuroseries as nts
 import numpy as np
@@ -15,6 +18,7 @@ import scipy.signal
 import scipy.stats
 
 import time
+import rem
 
 # Ensure using PyQt5 backend
 matplotlib.use('QT5Agg')
@@ -29,78 +33,67 @@ matplotlib.rcParams['figure.facecolor'] = '#efefef'
 matplotlib.rcParams['axes.facecolor'] = '#efefef'
 matplotlib.rcParams['svg.fonttype'] = 'none'
 
+
 # Matplotlib canvas class to create figure
 class MplCanvas(Canvas):
     def __init__(self):
-        
-
         self.fig = Figure()
-        
+        # Setting up axes
         self.ax_lfp = self.fig.add_subplot(311)
         self.ax_lfp.set_title('LFP')
-        self.ax_spectro = self.fig.add_subplot(312,sharex = self.ax_lfp)
+        self.ax_spectro = self.fig.add_subplot(312, sharex=self.ax_lfp)
         self.ax_spectro.set_title('Power')
-        self.ax_motion = self.fig.add_subplot(313,sharex = self.ax_lfp)
+        self.ax_motion = self.fig.add_subplot(313, sharex=self.ax_lfp)
         self.ax_motion.set_title('Motion')
+        # Plots on the LFP graph
+        self.lfp_line: Line2D = self.ax_lfp.plot(0, 0, 'grey')[0]
+        self.theta_line: Line2D = self.ax_lfp.plot(0, 0, 'red', alpha=.7, linewidth=.5)[0]
+        self.delta_line: Line2D = self.ax_lfp.plot(0, 0, 'green', alpha=.7, linewidth=.5)[0]
+        self.ax_lfp.set_ylim(-35000, 35000)
+        # Plots on the theta / delta ratio axis
+        self.ratio_line: Line2D = self.ax_spectro.plot(0, 0, 'red')[0]
+        self.ratio_th_line: Line2D = self.ax_spectro.axhline(0, color='r', picker=True)
+        self.ax_spectro.set_ylim([0, 5000])
+        # Plots on the motion axis
+        self.motion_line: Line2D = self.ax_motion.plot(0, 0)[0]
+        self.motion_th_line: Line2D = self.ax_motion.axhline(0, color='r')
+        self.ax_motion.set_ylim([-250, 250])
+        # All plots
+        self.all_lines = (self.lfp_line, self.theta_line, self.delta_line,
+                          self.ratio_line, self.motion_line)
 
-        self.fig.tight_layout()
-
+        self.fig.set_tight_layout(True)
         Canvas.__init__(self, self.fig)
         Canvas.setSizePolicy(self, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         Canvas.updateGeometry(self)
-    def plot(self,lfp,filt_theta,filt_delta,ratio,motion,ratio_treshold,motion_treshold):
 
-        self.ax_lfp.clear()
-        self.ax_spectro.clear()
-        self.ax_motion.clear()
-
-        self.ax_lfp.plot(lfp.as_units('s'),'grey')
-        self.ax_lfp.plot(filt_theta.as_units('s'),'red',alpha = 0.3)
-        self.ax_lfp.plot(filt_delta.as_units('s'),'green',alpha = 0.3)
-        self.ax_lfp.set_ylim(-3,3)
-        self.ax_lfp.set_title('LFP')
-        
-        self.ax_spectro.clear()
-        # self.ax_spectro.set_ylim([0,0.001])
-        # img = self.ax_spectro.pcolormesh(t_spectrogram, f, Sxx)
-        # img.set_clim(0,20_00)
-        # self.ax_spectro.set_ylim(0,20)
-        # self.ax_spectro.set_title('Power')
-
-        self.ax_spectro.plot(ratio.as_units('s'))
-        self.ax_spectro.axhline(ratio_treshold, color = 'r')
-        self.ax_spectro.set_ylim([0,50])
-
-
-
-
-        self.ax_motion.clear()
-        self.ax_motion.plot(motion.as_units('s'))
-        self.ax_motion.axhline(motion_treshold, color = 'r')
-        self.ax_motion.set_ylim([-250,250])
-
-
-
+    def plot(self, lfp, theta, delta, ratio, motion, **kwargs):
+        if len(self.lfp_line.get_xdata()) < 10:
+            n_pts = len(lfp)
+            for l in self.all_lines:
+                l.set_xdata(np.arange(n_pts))  # Fixme: add the sampling rate here
+                l.axes.set_xlim(0, n_pts)
+        self.lfp_line.set_ydata(lfp)
+        self.theta_line.set_ydata(theta)
+        self.delta_line.set_ydata(delta)
+        self.ratio_line.set_ydata(ratio)
+        self.motion_line.set_ydata(motion)
         self.fig.canvas.draw()
-        self.ax_motion.set_title('Motion')
-
 
 
 # Matplotlib widget
 class MplWidget(QtWidgets.QWidget):
-    def __init__(self, parent=None,ui = None):
-        
+    def __init__(self, parent=None, ui=None):
         self.ui = ui
 
         self.lfp_channel = 0
         self.motion_channel = 0
 
-        self.low_delta = 0
+        self.low_delta = 0.1
         self.high_delta = 4
 
         self.low_theta = 4
         self.high_theta = 12
-
 
         self.ratio_treshold = 0
         self.motion_treshold = 0
@@ -109,41 +102,51 @@ class MplWidget(QtWidgets.QWidget):
 
         # self.update_params()
 
-        QtWidgets.QWidget.__init__(self, parent)   # Inherit from QWidget
-        self.canvas = MplCanvas()                  # Create canvas object
+        QtWidgets.QWidget.__init__(self, parent)  # Inherit from QWidget
+        self.canvas = MplCanvas()  # Create canvas object
         self.toolbar = NavigationToolbar(self.canvas, self)
-        self.vbl = QtWidgets.QVBoxLayout()         # Set box for plotting
+        self.vbl = QtWidgets.QVBoxLayout()  # Set box for plotting
         self.vbl.addWidget(self.toolbar)
         self.vbl.addWidget(self.canvas)
         self.setLayout(self.vbl)
 
-
+        self.comp_th = QThread(self)
+        self.rem_comp = REMDetector(None, self.low_delta, self.high_delta,
+                                    self.low_theta, self.high_theta, fs=20000)
+        self.comp_th.finished.connect(self.finish_comp_th)
+        self.rem_comp.moveToThread(self.comp_th)
+        self.comp_th.start()
+        self.rem_comp.data_ready.connect(self.comp_done)
+        self.buf_size = 2000 * 5    # FIXME: to parametrize
+        buff = np.zeros(self.buf_size)
+        self.buffers = {'ratio': buff.copy(), 'motion': buff.copy(),
+                        'theta': buff.copy(), 'delta': buff.copy(),
+                        'lfp': buff.copy(), 'acc': buff.copy()}
+        self.c_ix = 0
         self.start = 200
 
-    def update_plot(self):
-        
-        t_t = time.time()
-        self.end = self.start + self.window_length
-        # bk.load.current_session_linux()
-        
-        # f,t,Sxx = scipy.signal.spectrogram(lfp.values,fs = 1250,nperseg = 200, noverlap = 100)
-        # ratio = np.mean(np.mean(Sxx[(4<f) & (f<12),:],0)/np.mean(Sxx[f<4,:],0))
+    def comp_done(self, data):
+        if self.c_ix >= self.buf_size:
+            self.c_ix = 0
+        data_ex = list(data.values())[0]
+        n_pts = len(data_ex)
+        space_left = self.buf_size - self.c_ix
+        remaining = n_pts - space_left
+        for k, v in data.items():
+            if k !='lfp':
+                continue
+            first_part = min(space_left, len(v))
+            self.buffers[k][self.c_ix:self.c_ix+first_part] = v[:first_part]
+            if remaining > 0:
+                self.buffers[k][:remaining] = v[space_left:]
+        self.c_ix += n_pts
+        self.canvas.plot(**self.buffers)
 
-
-        lfp,filt_theta_z,filt_delta_z,ratio,motion = compute_graph(self.ui.dat_path,
-            self.lfp_channel,self.motion_channel,
-            self.start,self.end,
-            self.low_delta,self.high_delta,
-            self.low_theta,self.high_theta)
-
-        self.canvas.plot(lfp,filt_theta_z,filt_delta_z,ratio,motion,self.ratio_treshold,self.motion_treshold)
-        self.start += 1
-        self.end +=1
-        print(time.time()-t_t)
-        QTimer.singleShot(2000,self.update_plot)
+    def finish_comp_th(self):
+        self.comp_th.quit()
+        self.comp_th.wait()
 
     def update_params(self):
-
         self.lfp_channel = np.int(self.ui.lfp_channel.text())
         self.motion_channel = np.int(self.ui.motion_channel.text())
 
@@ -159,44 +162,75 @@ class MplWidget(QtWidgets.QWidget):
         self.window_length = np.float(self.ui.window_length.text())
 
 
-def compute_graph(path,lfp_channel,motion_channel,start,end,low_delta,high_delta,low_theta,high_theta):
-    
-    data = np.memmap(path,dtype = np.int16)
-    data = data.reshape((-1,137))
-    t = np.arange(start,end,1/20_000,dtype = np.float64)
-    print(t.shape)
-    lfp = nts.Tsd(t ,data[np.int(start*20_000):np.int(end*20_000),lfp_channel],time_units = 's')
+class REMDetector(QObject):
+    data_ready = pyqtSignal(dict)
 
-    motion = nts.Tsd(t,data[np.int(start*20_000):np.int(end*20_000),motion_channel],time_units = 's')
-    # lfp = bk.load.lfp(self.lfp_channel,self.start,self.end,dat = True,frequency = 20_000)
-    # motion = bk.load.lfp(self.motion_channel,self.start,self.end,dat = True,frequency = 20_000)
+    def __init__(self, parent: typing.Optional['QObject'] = None,
+                 low_delta: float = .1, high_delta: float = 3,
+                 low_theta: float = 4, high_theta: float = 10, fs: int = 20000) -> None:
+        super().__init__(parent)
+        self.low_delta = low_delta
+        self.high_delta = high_delta
+        self.low_theta = low_theta
+        self.high_theta = high_theta
+        self.fs = fs
+        self._last_ratio: Optional[np.ndarray] = None
+        self._last_motion: Optional[np.ndarray] = None
 
-    lfp = scipy.signal.decimate(lfp.values,16)
-    t_down = np.linspace(start,end,len(lfp))
+    def analyze_dict(self, data):
+        self.analyze(**data)
 
-    print(lfp.shape)
-    lfp = nts.Tsd(t_down,lfp,time_units = 's')
-
-    motion = scipy.signal.decimate(motion.values,16)
-    motion = np.diff(motion,append = motion[-1])
-    motion = nts.Tsd(t_down,motion,time_units = 's')
-
-    filt_theta = bk.signal.passband(lfp,low_theta,high_theta)
-    # filt_delta = bk.signal.passband(lfp,low_delta,high_delta)
-    filt_delta = bk.signal.lowpass(lfp,high_delta)
-
-
-    lfp = nts.Tsd(lfp.index.values,scipy.stats.zscore(lfp.values))
-    filt_theta_z = nts.Tsd(filt_theta.index.values,scipy.stats.zscore(filt_theta.values))
-    filt_delta_z = nts.Tsd(filt_delta.index.values,scipy.stats.zscore(filt_delta.values))
+    def analyze(self, lfp, acc):
+        ratio, theta, delta, motion, ds_lfp = rem.is_sleeping(lfp, acc,
+                                                              self.low_delta, self.high_delta,
+                                                              self.low_theta, self.high_theta,
+                                                              self.fs)
+        self._last_motion = motion
+        self._last_ratio = ratio
+        # FIXME: Get real acc data
+        self.data_ready.emit({'ratio': ratio, 'motion': motion, 'theta': theta, 'delta': delta,
+                              'lfp': lfp, 'acc': ds_lfp})
 
 
-    power_theta,_ = bk.signal.hilbert(filt_theta)
-    power_delta,_ = bk.signal.hilbert(filt_delta)
 
-    ratio = power_theta.values/power_delta.values
-    ratio = nts.Tsd(t_down,ratio,time_units = 's')
-    # t = t+lfp.as_units('s').index.values[0]
 
-    return(lfp,filt_theta_z,filt_delta_z,ratio,motion)
-
+#
+# def compute_graph(path, lfp_channel, motion_channel, start, end, low_delta, high_delta, low_theta,
+#                   high_theta):
+#     data = np.memmap(path, dtype=np.int16)
+#     data = data.reshape((-1, 137))
+#     t = np.arange(start, end, 1 / 20_000, dtype=np.float64)
+#     print(t.shape)
+#     lfp = nts.Tsd(t, data[np.int(start * 20_000):np.int(end * 20_000), lfp_channel], time_units='s')
+#
+#     motion = nts.Tsd(t, data[np.int(start * 20_000):np.int(end * 20_000), motion_channel],
+#                      time_units='s')
+#     # lfp = bk.load.lfp(self.lfp_channel,self.start,self.end,dat = True,frequency = 20_000)
+#     # motion = bk.load.lfp(self.motion_channel,self.start,self.end,dat = True,frequency = 20_000)
+#
+#     lfp = scipy.signal.decimate(lfp.values, 16)
+#     t_down = np.linspace(start, end, len(lfp))
+#
+#     print(lfp.shape)
+#     lfp = nts.Tsd(t_down, lfp, time_units='s')
+#
+#     motion = scipy.signal.decimate(motion.values, 16)
+#     motion = np.diff(motion, append=motion[-1])
+#     motion = nts.Tsd(t_down, motion, time_units='s')
+#
+#     filt_theta = bk.signal.passband(lfp, low_theta, high_theta)
+#     # filt_delta = bk.signal.passband(lfp,low_delta,high_delta)
+#     filt_delta = bk.signal.lowpass(lfp, high_delta)
+#
+#     lfp = nts.Tsd(lfp.index.values, scipy.stats.zscore(lfp.values))
+#     filt_theta_z = nts.Tsd(filt_theta.index.values, scipy.stats.zscore(filt_theta.values))
+#     filt_delta_z = nts.Tsd(filt_delta.index.values, scipy.stats.zscore(filt_delta.values))
+#
+#     power_theta, _ = bk.signal.hilbert(filt_theta)
+#     power_delta, _ = bk.signal.hilbert(filt_delta)
+#
+#     ratio = power_theta.values / power_delta.values
+#     ratio = nts.Tsd(t_down, ratio, time_units='s')
+#     # t = t+lfp.as_units('s').index.values[0]
+#
+#     return (lfp, filt_theta_z, filt_delta_z, ratio, motion)
