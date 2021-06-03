@@ -3,7 +3,8 @@ from scipy import signal
 import numpy as np
 from numpy.random import Generator, MT19937
 from functools import lru_cache
-
+from scipy.signal import welch
+from scipy.integrate import simps
 
 gen = Generator(MT19937(6))
 
@@ -64,11 +65,63 @@ def is_sleeping(lfp, acc, low_delta=.1, high_delta=3, low_theta=4, high_theta=10
     return ratio, theta, delta, motion, dwn_sig
 
 
+def bandpower(data, sf, band, window_sec=None, relative=False):
+    """
+    Compute the average power of the signal x in a specific frequency band.
+    Taken from: https://raphaelvallat.com/bandpower.html
+
+    Parameters
+    ----------
+    data : 1d-array
+        Input signal in the time-domain.
+    sf : float
+        Sampling frequency of the data.
+    band : list
+        Lower and upper frequencies of the band of interest.
+    window_sec : float
+        Length of each window in seconds.
+        If None, window_sec = (1 / min(band)) * 2
+    relative : boolean
+        If True, return the relative power (= divided by the total power of the signal).
+        If False (default), return the absolute power.
+
+    Return
+    ------
+    bp : float
+        Absolute or relative band power.
+    """
+
+    band = np.asarray(band)
+    low, high = band
+
+    # Define window length
+    if window_sec is not None:
+        nperseg = window_sec * sf
+    else:
+        nperseg = (2 / low) * sf
+
+    # Compute the modified periodogram (Welch)
+    freqs, psd = welch(data, sf, nperseg=nperseg)
+
+    # Frequency resolution
+    freq_res = freqs[1] - freqs[0]
+
+    # Find closest indices of band in frequency vector
+    idx_band = np.logical_and(freqs >= low, freqs <= high)
+
+    # Integral approximation of the spectrum using Simpson's rule.
+    bp = simps(psd[idx_band], dx=freq_res)
+
+    if relative:
+        bp /= simps(psd, dx=freq_res)
+    return bp
+
+
 def generate_data(dur=60, fs=20000, noise=1):
     """
     Generates fake data to test analysis functions
     Noise during first third, then delta + theta for a third, then noise
-    Accelaration is noise during first fourth, then activity during second 1/4th, then just noise
+    Acceleration is noise during first fourth, then activity during second 1/4th, then just noise
     during next  1/4 then activity again
     LFP: ____----____
     ACC: ___---___---
