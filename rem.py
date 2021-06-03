@@ -8,7 +8,7 @@ from functools import lru_cache
 gen = Generator(MT19937(6))
 
 
-@lru_cache
+@lru_cache(None)
 def make_sos_filter(order, low, high, btype, fs):
     sos = signal.butter(order, [low, high], btype=btype, output='sos', fs=fs)
     return sos
