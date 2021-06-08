@@ -30,12 +30,14 @@ class Streamer(QtCore.QObject):
             self.intan_timer.stop()
             return
 
-        data = u.parse_block(raw_data)
+        data = u.parse_block(raw_data, 4)
+        print('Data parsed', data.shape)
         if data is None:
             self.disconnected.emit()        # FIXME: May not be the smartest
             self.intan_timer.stop()
             return
-        self.data_ready.emit({'data': data})
+        data = data.reshape((-1, 4))
+        self.data_ready.emit({'data': data[:, 0], 'acc': data[:, 1:]})
 
 
 class REM(Ui_MainWindow):
@@ -84,7 +86,7 @@ class REM(Ui_MainWindow):
 
     def get_data(self, data):
         # FIXME: Fake accelerometer because complicated
-        self.lfp_ready.emit({'lfp': data['data'], 'acc': data['data']})
+        self.lfp_ready.emit({'lfp': data['data'], 'acc': data['acc']})
 
     def start_acq(self, is_connected):
         if is_connected:
