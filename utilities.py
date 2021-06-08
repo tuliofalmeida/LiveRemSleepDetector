@@ -22,6 +22,6 @@ def parse_block(raw_data):
     r = np.array(all_block_struct.unpack(raw_data))
     blocks = r.reshape((num_blocks, -1))
     if not np.all(blocks[:, 0] == 0x2ef07a08):
-        raise ValueError('Error... magic number incorrect')
+        raise ValueError(f'Error... magic number {blocks[0, 0]} incorrect')
     data = blocks[:, 2::2].reshape(-1)
     return data

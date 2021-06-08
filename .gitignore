@@ -137,3 +137,8 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
+/.idea/sonarlint/issuestore/index.pb
+/.idea/.gitignore
+/lfp_sample_and_sleep_scoring/States.mat
+/lfp_sample_and_sleep_scoring/sample.xml
+/lfp_sample_and_sleep_scoring/sample.lfp
