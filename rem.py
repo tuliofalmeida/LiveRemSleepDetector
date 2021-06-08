@@ -164,7 +164,7 @@ def generate_data(dur=60, fs=20000, noise=1):
     return lfp, acc
 
 
-if __name__ == '__main__':
+if __name__ == '__main__' and False:
     fake_lfp, fake_acc = generate_data(dur=5)
     for _ in range(1):
         r, t, d, m, dl = is_sleeping(fake_lfp, fake_acc)
