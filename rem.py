@@ -43,6 +43,7 @@ def get_band_power(dwn_sig, low, high, dwn_fs=1250, order=4):
 def delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=20000, factor=16):
     dwn_sig = downsample(lfp, factor)
     dwn_fs = int(fs // factor)
+    print(lfp.shape, dwn_sig.shape)
     theta, theta_power = get_band_power(dwn_sig, low_theta, high_theta, dwn_fs)
     delta, delta_power = get_band_power(dwn_sig, low_delta, high_delta, dwn_fs)
     ratio = zscore(theta_power) / zscore(delta_power)
@@ -52,11 +53,15 @@ def delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=20000, fac
 def speed(acc_sig, factor=16, fs=20000):
     motion = downsample(acc_sig)
     dwn_fs = fs / factor
-    n_pts = len(motion)
-    end_time = n_pts / dwn_fs
-    t = np.linspace(0, end_time, n_pts)
-    d_motion = np.gradient(motion, t)
-    return d_motion
+    # n_pts = len(motion)
+    # end_time = n_pts / dwn_fs
+    # t = np.linspace(0, end_time, n_pts)
+
+    acc = np.linalg.norm(motion, axis=1)
+    med = np.median(acc)
+    mad = np.median(np.abs(acc-med))
+    acc = np.abs(acc-med) / mad
+    return acc
 
 
 def is_sleeping(lfp, acc, low_delta=.1, high_delta=3, low_theta=4, high_theta=10, fs=20000):

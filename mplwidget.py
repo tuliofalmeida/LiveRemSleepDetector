@@ -1,9 +1,7 @@
 # Imports
-import typing
-from typing import Optional
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import QTimer, QObject, pyqtSignal, QThread
-
+from PyQt5.QtCore import QThread
+from rem_obj import REMDetector
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as Canvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -161,35 +159,6 @@ class MplWidget(QtWidgets.QWidget):
 
         self.window_length = np.float(self.ui.window_length.text())
 
-
-class REMDetector(QObject):
-    data_ready = pyqtSignal(dict)
-
-    def __init__(self, parent: typing.Optional['QObject'] = None,
-                 low_delta: float = .1, high_delta: float = 3,
-                 low_theta: float = 4, high_theta: float = 10, fs: int = 20000) -> None:
-        super().__init__(parent)
-        self.low_delta = low_delta
-        self.high_delta = high_delta
-        self.low_theta = low_theta
-        self.high_theta = high_theta
-        self.fs = fs
-        self._last_ratio: Optional[np.ndarray] = None
-        self._last_motion: Optional[np.ndarray] = None
-
-    def analyze_dict(self, data):
-        self.analyze(**data)
-
-    def analyze(self, lfp, acc):
-        ratio, theta, delta, motion, ds_lfp = rem.is_sleeping(lfp, acc,
-                                                              self.low_delta, self.high_delta,
-                                                              self.low_theta, self.high_theta,
-                                                              self.fs)
-        self._last_motion = motion
-        self._last_ratio = ratio
-        # FIXME: Get real acc data
-        self.data_ready.emit({'ratio': ratio, 'motion': motion, 'theta': theta, 'delta': delta,
-                              'lfp': lfp, 'acc': ds_lfp})
 
 
 

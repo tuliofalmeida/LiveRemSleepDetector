@@ -16,7 +16,7 @@ def parse_block(raw_data, n_channels=1):
     expected_data_size = frames_per_block * (size_sample * n_channels + size_timestamp) + size_magic_number
     frame_struct = f'i{"H"*n_channels}' * frames_per_block
     block_struct = f'L{frame_struct}'
-    print(len(raw_data), expected_data_size, n_channels)
+    # print(len(raw_data), expected_data_size, n_channels)
     if len(raw_data) % expected_data_size != 0:
         print('Data error')
         return

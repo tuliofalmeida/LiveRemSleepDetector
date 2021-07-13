@@ -1,4 +1,6 @@
-from typing import Dict
+import numpy as np
+from rem_obj import REMDetector
+from tcp_intan import IntanMaster, Streamer
 import pyqtgraph as pg
 import sys
 from functools import partial
@@ -58,33 +60,56 @@ class UI(QtWidgets.QMainWindow):
         v_lyt_right.addWidget(logo_lab)
         # Parameters
         options_lyt = QtWidgets.QFormLayout()
+        self.headstage = QtWidgets.QComboBox()
+        self.headstage.addItems(('A', 'B', 'C', 'D'))
+        self.headstage.currentTextChanged.connect(self.update_headstage)
+        options_lyt.addRow('Headstage port', self.headstage)
         self.ch_num = QtWidgets.QSpinBox()
+        self.ch_num.setRange(1, 128)
         self.ch_num.valueChanged.connect(self.update_ch_num)
         options_lyt.addRow('Channel to use', self.ch_num)
         self.theta_low = QtWidgets.QDoubleSpinBox()
+        self.theta_low.setValue(6)
+        self.theta_low.setRange(1, 20)
         self.theta_low.valueChanged.connect(partial(self.update_filter, 'theta_low'))
         options_lyt.addRow('Theta low frequency (Hz)', self.theta_low)
         self.theta_high = QtWidgets.QDoubleSpinBox()
-        self.theta_low.valueChanged.connect(partial(self.update_filter, 'theta_high'))
+        self.theta_high.setValue(10)
+        self.theta_high.setRange(1, 20)
+        self.theta_high.valueChanged.connect(partial(self.update_filter, 'theta_high'))
         options_lyt.addRow('Theta high frequency (Hz)', self.theta_high)
         self.delta_low = QtWidgets.QDoubleSpinBox()
+        self.delta_low.setRange(.1, 5)
+        self.delta_low.setValue(.1)
         options_lyt.addRow('Delta low frequency (Hz)', self.delta_low)
-        self.theta_low.valueChanged.connect(partial(self.update_filter, 'delta_low'))
+        self.delta_low.valueChanged.connect(partial(self.update_filter, 'delta_low'))
         self.delta_high = QtWidgets.QDoubleSpinBox()
+        self.delta_high.setRange(.1, 5)
+        self.delta_high.setValue(4)
         options_lyt.addRow('Delta high frequency (Hz)', self.delta_high)
-        self.theta_low.valueChanged.connect(partial(self.update_filter, 'delta_high'))
+        self.delta_high.valueChanged.connect(partial(self.update_filter, 'delta_high'))
         self.ratio_th = QtWidgets.QDoubleSpinBox()
         self.ratio_th.setSingleStep(0.1)
+        self.ratio_th.setValue(0.45)
+        self.ratio_th.setRange(.1, 2)
         self.ratio_th.valueChanged.connect(self.update_ratio)
         options_lyt.addRow('Delta / Theta ratio threshold', self.ratio_th)
         self.acc_th = QtWidgets.QDoubleSpinBox()
+        self.acc_th.setValue(3)
         self.acc_th.valueChanged.connect(self.update_acc)
         options_lyt.addRow('Motion threshold', self.acc_th)
         # Buttons
         v_lyt_right.addLayout(options_lyt)
         h_lyt_btn = QtWidgets.QHBoxLayout()
+        self.connect_btn = QtWidgets.QPushButton('&Connect')
+        self.connect_btn.clicked.connect(self.connect)
         self.stop_btn = QtWidgets.QPushButton('Sto&p')
+        self.stop_btn.setEnabled(False)
         self.start_btn = QtWidgets.QPushButton('&Start')
+        self.start_btn.setEnabled(False)
+        self.start_btn.clicked.connect(self.start)
+        self.stop_btn.clicked.connect(self.stop)
+        h_lyt_btn.addWidget(self.connect_btn)
         h_lyt_btn.addWidget(self.stop_btn)
         h_lyt_btn.addWidget(self.start_btn)
         v_lyt_right.addLayout(h_lyt_btn)
@@ -114,16 +139,22 @@ class UI(QtWidgets.QMainWindow):
     def acc_marker_moved(self):
         self.update_acc(self.acc_th_marker.value())
 
+    def connect(self):
+        # TBD in main class
+        pass
+
     def ratio_marker_moved(self):
         self.update_ratio(self.ratio_th_marker.value())
 
     def start(self):
         # TBD in main class
-        pass
+        self.stop_btn.setEnabled(True)
+        self.start_btn.setEnabled(False)
 
     def stop(self):
         # TBD in main class
-        pass
+        self.start_btn.setEnabled(True)
+        self.stop_btn.setEnabled(False)
 
     def update_acc(self, value: float):
         # TBD in main class
@@ -140,6 +171,10 @@ class UI(QtWidgets.QMainWindow):
         # TBD in main class
         pass
 
+    def update_headstage(self, value: str):
+        # TBD in main class
+        pass
+
     def update_ratio(self, value: float):
         # TBD in main class
         self.ratio_th.blockSignals(True)
@@ -149,7 +184,119 @@ class UI(QtWidgets.QMainWindow):
 
 
 class LRD(UI):
-    pass
+    data_ready = QtCore.pyqtSignal(dict)
+    def __init__(self) -> None:
+        super().__init__()
+        # Connection to Intan software for parameters
+        self.intan_master = IntanMaster(auto_retry=True)
+        self.intan_cmd_th = QtCore.QThread(self)
+        self.intan_cmd_th.finished.connect(self.finished_cmd_th)
+        self.intan_cmd_th.start()
+        self.intan_master.moveToThread(self.intan_cmd_th)
+        self.intan_master.connect_ev.connect(self.master_connected)
+        self.intan_master.disconnect_ev.connect(self.master_disconnected)
+        # Connection to Intan software for data
+        self.streamer = Streamer()
+        self.stream_th = QtCore.QThread(self)
+        self.stream_th.finished.connect(self.finished_stream_th)
+        self.stream_th.start()
+        self.streamer.moveToThread(self.stream_th)
+        self.streamer.data_ready.connect(self.receiving_data)
+        self.streamer.connect_ev.connect(self.streamer_connected)
+        self.streamer.data_error.connect(self.data_error)
+        # Data analysis
+        self.comp_th = QtCore.QThread(self)
+        self.rem_comp = REMDetector(None, self.delta_low.value(), self.delta_high.value(),
+                                    self.theta_low.value(), self.theta_high.value(), fs=20000)
+        self.comp_th.finished.connect(self.finish_comp_th)
+        self.comp_th.start()
+        self.rem_comp.moveToThread(self.comp_th)
+        self.data_ready.connect(self.rem_comp.analyze_dict)
+        self.rem_comp.data_ready.connect(self.comp_done)
+        self.buf_size = 2000 * 5     # FIXME: to parametrize
+        buff = np.zeros(self.buf_size)
+        self.buffers = {'ratio': buff.copy(), 'motion': buff.copy(),
+                        'theta': buff.copy(), 'delta': buff.copy(),
+                        'lfp': buff.copy(), 'acc':  np.zeros((self.buf_size, 3))}
+
+    def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
+        super().closeEvent(a0)
+        self.intan_master.restore_color()
+        self.finished_cmd_th()
+        self.finished_stream_th()
+        self.finish_comp_th()
+
+    def comp_done(self, data):
+        # Fixme: TBD
+        self.logger.debug('REM detection is done')
+        self.lfp_curve.setData(data['lfp'])
+        self.ratio_curve.setData(data['ratio'])
+        self.acc_curve.setData(data['motion'])
+
+    def connect(self):
+        self.intan_master.headstage = self.headstage.currentText().lower()
+        self.intan_master.connect()
+        self.streamer.connect()
+
+    def data_error(self):
+        self.stop()
+
+    def finished_cmd_th(self):
+        self.intan_cmd_th.quit()
+        self.intan_cmd_th.wait()
+
+    def finish_comp_th(self):
+        self.comp_th.quit()
+        self.comp_th.wait()
+
+    def finished_stream_th(self):
+        self.stream_th.quit()
+        self.stream_th.wait()
+
+    def master_connected(self, status: bool):
+        if status:
+            self.intan_master.set_ch_ix(self.ch_num.value())
+            self.intan_master.start_pinging()
+            self.connect_btn.setEnabled(False)
+            self.headstage.setEnabled(False)
+
+    def master_disconnected(self):
+        self.logger.error('Intan disconnected')
+        self.stop()
+        self.connect_btn.setEnabled(True)
+        self.headstage.setEnabled(True)
+        self.start_btn.setEnabled(False)
+
+    def receiving_data(self, data):
+        lfp = data['lfp']
+        n_lfp_pts = len(lfp)
+        acc = data['acc']
+        n_acc_pts = len(acc)
+        assert n_acc_pts == n_lfp_pts
+        self.buffers['lfp'] = np.roll(self.buffers['lfp'], -n_lfp_pts)
+        self.buffers['lfp'][-n_lfp_pts:] = lfp
+        self.buffers['acc'] = np.roll(self.buffers['acc'], -n_lfp_pts)
+        self.buffers['acc'][-n_lfp_pts:, :] = acc
+        self.data_ready.emit({'lfp': self.buffers['lfp'], 'acc': self.buffers['acc']})
+
+    def start(self):
+        super(LRD, self).start()
+        self.intan_master.stop_pinging()
+        self.streamer.start_stream()
+
+    def stop(self):
+        super().stop()
+        self.streamer.stop_stream()
+        self.intan_master.clear_all_data_outputs()
+        self.intan_master.start_pinging()
+
+    def streamer_connected(self, status: bool):
+        if status:
+            self.start_btn.setEnabled(True)
+
+    def update_ch_num(self, ch_ix: int):
+        super().update_ch_num(ch_ix)
+        self.intan_master.set_ch_ix(ch_ix)
 
 
 def handle_exception(logname, exc_type, exc_value, exc_traceback):
