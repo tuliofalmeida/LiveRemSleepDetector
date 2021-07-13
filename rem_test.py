@@ -27,7 +27,7 @@ def plot_states(lfp, states, t, ch_ix: int = 0, tmin=0, tmax=None, ax=None):
     gi = (t > tmin) & (t <= tmax)
     if ax is None:
         fig, ax = plt.subplots(1, 1)
-    ax.plot(t[gi], lfp[gi, ch_ix])
+    ax.plot(t[gi], lfp[gi, ch_ix], c='.2')
     ymin, ymax = ax.get_ylim()
     states_names = sorted(list(states.keys()))
     colors = ('#ef476f55', '#ffd16655', '#06d6a055', '#118ab255')
