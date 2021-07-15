@@ -9,7 +9,7 @@ class REMDetector(QObject):
 
     def __init__(self, parent: Optional['QObject'] = None,
                  low_delta: float = .1, high_delta: float = 3,
-                 low_theta: float = 4, high_theta: float = 10, fs: int = 20000) -> None:
+                 low_theta: float = 4, high_theta: float = 10, fs: int = 1250) -> None:
         super().__init__(parent)
         self.low_delta = low_delta
         self.high_delta = high_delta
@@ -23,11 +23,12 @@ class REMDetector(QObject):
         self.analyze(**data)
 
     def analyze(self, lfp, acc):
-
-        ratio, theta, delta, motion, ds_lfp = rem.is_sleeping(lfp, acc,
-                                                              self.low_delta, self.high_delta,
-                                                              self.low_theta, self.high_theta,
-                                                              self.fs)
+        lfp = rem.downsample(lfp)
+        acc = rem.downsample(acc)
+        ratio, theta, delta, motion = rem.is_sleeping(lfp, acc,
+                                                      self.low_delta, self.high_delta,
+                                                      self.low_theta, self.high_theta,
+                                                      self.fs)
         self._last_motion = motion
         self._last_ratio = ratio
         self.data_ready.emit({'ratio': ratio, 'motion': motion, 'theta': theta, 'delta': delta,

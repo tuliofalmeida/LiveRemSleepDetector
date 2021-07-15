@@ -29,51 +29,38 @@ def lowpass(sig, cut, fs=1250, order=4):
 
 def downsample(raw_sig, factor=16):
     # This is the slowest part of it all
-    dwn = signal.decimate(raw_sig, factor, ftype='fir')  # FIR is slower than IIR
+    # zero_phase = False ?
+    dwn = signal.decimate(raw_sig, factor, ftype='fir', axis=0)  # FIR is slower than IIR
     return dwn
 
 
-def get_band_power(dwn_sig, low, high, dwn_fs=1250, order=4):
-    f_sig = bandpass(dwn_sig, low, high, dwn_fs, order)
-    h_transf = signal.hilbert(f_sig)
-    power = np.abs(h_transf) ** 2
-    return f_sig, power
+def delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=1250):
+    bands = [(low_delta, high_delta), (low_theta, high_theta)]
+    nperseg = (2 / low_delta) * fs
+    freqs, psd = get_spectrum(lfp, fs, nperseg)
+    delta, theta = bandpower(bands, freqs, psd)
+    ratio = delta / theta
+
+    return ratio, theta, delta
 
 
-def delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=20000, factor=16):
-    dwn_sig = downsample(lfp, factor)
-    dwn_fs = int(fs // factor)
-    print(lfp.shape, dwn_sig.shape)
-    theta, theta_power = get_band_power(dwn_sig, low_theta, high_theta, dwn_fs)
-    delta, delta_power = get_band_power(dwn_sig, low_delta, high_delta, dwn_fs)
-    ratio = zscore(theta_power) / zscore(delta_power)
-    return ratio, theta, delta, dwn_sig
-
-
-def speed(acc_sig, factor=16, fs=20000):
-    motion = downsample(acc_sig)
-    dwn_fs = fs / factor
-    # n_pts = len(motion)
-    # end_time = n_pts / dwn_fs
-    # t = np.linspace(0, end_time, n_pts)
-
-    acc = np.linalg.norm(motion, axis=1)
-    med = np.median(acc)
-    mad = np.median(np.abs(acc-med))
-    acc = np.abs(acc-med) / mad
+def speed(acc_sig):
+    acc = np.linalg.norm(acc_sig, axis=0)
+    # med = np.median(acc)
+    # mad = np.median(np.abs(acc-med))
+    # acc = np.abs(acc-med) / mad
+    acc = np.abs(acc-acc.mean()) / acc.std()
     return acc
 
 
-def is_sleeping(lfp, acc, low_delta=.1, high_delta=3, low_theta=4, high_theta=10, fs=20000):
-    ratio, theta, delta, dwn_sig = delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=fs)
-    motion = speed(acc, fs=fs)
-    return ratio, theta, delta, motion, dwn_sig
+def is_sleeping(lfp, acc, low_delta=.1, high_delta=3, low_theta=4, high_theta=10, fs=1250):
+    ratio, theta, delta = delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=fs)
+    motion = speed(acc)
+    return ratio, theta, delta, motion
 
 
-def bandpower(data, sf, band, window_sec=None, relative=False):
+def get_spectrum(data: np.ndarray, sf, nperseg):
     """
-    Compute the average power of the signal x in a specific frequency band.
-    Taken from: https://raphaelvallat.com/bandpower.html
 
     Parameters
     ----------
@@ -81,14 +68,30 @@ def bandpower(data, sf, band, window_sec=None, relative=False):
         Input signal in the time-domain.
     sf : float
         Sampling frequency of the data.
-    band : list
-        Lower and upper frequencies of the band of interest.
-    window_sec : float
-        Length of each window in seconds.
-        If None, window_sec = (1 / min(band)) * 2
-    relative : boolean
-        If True, return the relative power (= divided by the total power of the signal).
-        If False (default), return the absolute power.
+    nperseg
+
+    Returns
+    -------
+
+    """
+
+    # nperseg = (2 / low) * sf
+    # Compute the modified periodogram (Welch)
+    freqs, psd = welch(data, sf, nperseg=nperseg)
+    return freqs, psd
+
+
+def bandpower(bands, freqs, psd):
+    """
+    Compute the average power of the signal x in a specific frequency band.
+    Taken from: https://raphaelvallat.com/bandpower.html
+
+    Parameters
+    ----------
+    bands : list of tuples
+        List of tuples with Lower and upper frequencies of the band of interest.
+    freqs
+    psd
 
     Return
     ------
@@ -96,30 +99,19 @@ def bandpower(data, sf, band, window_sec=None, relative=False):
         Absolute or relative band power.
     """
 
-    band = np.asarray(band)
-    low, high = band
-
-    # Define window length
-    if window_sec is not None:
-        nperseg = window_sec * sf
-    else:
-        nperseg = (2 / low) * sf
-
-    # Compute the modified periodogram (Welch)
-    freqs, psd = welch(data, sf, nperseg=nperseg)
-
+    # band = np.asarray(band)
     # Frequency resolution
     freq_res = freqs[1] - freqs[0]
+    powers = [None for _ in bands]
+    for ix, band in enumerate(bands):
+        low, high = band
+        # Find closest indices of band in frequency vector
+        idx_band = np.logical_and(freqs >= low, freqs <= high)
+        # Integral approximation of the spectrum using Simpson's rule.
+        bp = simps(psd[idx_band], dx=freq_res)
+        powers[ix] = bp
 
-    # Find closest indices of band in frequency vector
-    idx_band = np.logical_and(freqs >= low, freqs <= high)
-
-    # Integral approximation of the spectrum using Simpson's rule.
-    bp = simps(psd[idx_band], dx=freq_res)
-
-    if relative:
-        bp /= simps(psd, dx=freq_res)
-    return bp
+    return powers
 
 
 def generate_data(dur=60, fs=20000, noise=1):

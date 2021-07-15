@@ -80,7 +80,7 @@ class UI(QtWidgets.QMainWindow):
         options_lyt.addRow('Theta high frequency (Hz)', self.theta_high)
         self.delta_low = QtWidgets.QDoubleSpinBox()
         self.delta_low.setRange(.1, 5)
-        self.delta_low.setValue(.1)
+        self.delta_low.setValue(1)
         options_lyt.addRow('Delta low frequency (Hz)', self.delta_low)
         self.delta_low.valueChanged.connect(partial(self.update_filter, 'delta_low'))
         self.delta_high = QtWidgets.QDoubleSpinBox()
@@ -98,6 +98,19 @@ class UI(QtWidgets.QMainWindow):
         self.acc_th.setValue(3)
         self.acc_th.valueChanged.connect(self.update_acc)
         options_lyt.addRow('Motion threshold', self.acc_th)
+        self.buffer_dur = QtWidgets.QSpinBox()
+        self.buffer_dur.setRange(4, 15)
+        self.buffer_dur.setValue(4)
+        self.buffer_dur.valueChanged.connect(self.buffer_dur_update)
+        options_lyt.addRow('Buffer duration (s)', self.buffer_dur)
+        self.win_dur = QtWidgets.QSpinBox()
+        self.win_dur.setRange(2, 10)
+        self.win_dur.setValue(2)
+        self.win_dur.valueChanged.connect(self.win_dur_update)
+        options_lyt.addRow('Window duration (s)', self.win_dur)
+
+        self.sr_lbl = QtWidgets.QLabel('20000')
+        options_lyt.addRow('Sampling rate (Hz)', self.sr_lbl)
         # Buttons
         v_lyt_right.addLayout(options_lyt)
         h_lyt_btn = QtWidgets.QHBoxLayout()
@@ -138,6 +151,10 @@ class UI(QtWidgets.QMainWindow):
 
     def acc_marker_moved(self):
         self.update_acc(self.acc_th_marker.value())
+
+    def buffer_dur_update(self, value):
+        # TBD in main class
+        pass
 
     def connect(self):
         # TBD in main class
@@ -182,9 +199,14 @@ class UI(QtWidgets.QMainWindow):
         self.ratio_th_marker.setValue(value)
         self.ratio_th.blockSignals(False)
 
+    def win_dur_update(self, value):
+        # TBD in main class
+        pass
+
 
 class LRD(UI):
     data_ready = QtCore.pyqtSignal(dict)
+
     def __init__(self) -> None:
         super().__init__()
         # Connection to Intan software for parameters
@@ -207,17 +229,20 @@ class LRD(UI):
         # Data analysis
         self.comp_th = QtCore.QThread(self)
         self.rem_comp = REMDetector(None, self.delta_low.value(), self.delta_high.value(),
-                                    self.theta_low.value(), self.theta_high.value(), fs=20000)
+                                    self.theta_low.value(), self.theta_high.value(), fs=1250)
         self.comp_th.finished.connect(self.finish_comp_th)
         self.comp_th.start()
         self.rem_comp.moveToThread(self.comp_th)
         self.data_ready.connect(self.rem_comp.analyze_dict)
         self.rem_comp.data_ready.connect(self.comp_done)
-        self.buf_size = 2000 * 5     # FIXME: to parametrize
+        # Data buffers
+        self.rolled_in = 0
+        self.buf_size = int(2 * 20000 * 2)     # FIXME: to parametrize
         buff = np.zeros(self.buf_size)
         self.buffers = {'ratio': buff.copy(), 'motion': buff.copy(),
                         'theta': buff.copy(), 'delta': buff.copy(),
-                        'lfp': buff.copy(), 'acc':  np.zeros((self.buf_size, 3))}
+                        'lfp': buff.copy(), 'acc':  np.zeros((self.buf_size, 3)),
+                        'time': buff.copy(), 't_ratio': buff.copy()}
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         super().closeEvent(a0)
@@ -229,9 +254,16 @@ class LRD(UI):
     def comp_done(self, data):
         # Fixme: TBD
         self.logger.debug('REM detection is done')
-        self.lfp_curve.setData(data['lfp'])
-        self.ratio_curve.setData(data['ratio'])
-        self.acc_curve.setData(data['motion'])
+        self.lfp_curve.setData(self.buffers['time'], self.buffers['lfp'])
+        last_time = self.buffers['t_ratio'][-1]
+        n_pts = len(data['lfp'])
+        dt = 1 / 1250
+        new_ts = np.linspace(dt, n_pts*dt, n_pts) + last_time
+        self.add_to_buffer('t_ratio', [new_ts.mean()])
+        self.add_to_buffer('ratio', [data['ratio']])
+        self.ratio_curve.setData(self.buffers['t_ratio'], self.buffers['ratio'])
+        self.add_to_buffer('motion', data['motion'])
+        self.acc_curve.setData(self.buffers['time'], self.buffers['motion'])
 
     def connect(self):
         self.intan_master.headstage = self.headstage.currentText().lower()
@@ -240,6 +272,31 @@ class LRD(UI):
 
     def data_error(self):
         self.stop()
+
+    def add_to_buffer(self, buffer_name, data):
+        n_pts = len(data)
+        self.buffers[buffer_name] = np.roll(self.buffers[buffer_name], -n_pts)
+        self.buffers[buffer_name][-n_pts:] = data
+
+    def receiving_data(self, data_dict: dict):
+        data = data_dict['data']
+        lfp = data[:, 0]
+        acc = data[:, 1:]
+        n_pts = len(lfp)
+        dt = 1 / 20000
+        last_time = self.buffers['time'][-1]
+        new_ts = np.linspace(dt, dt * n_pts, n_pts) + last_time
+        self.add_to_buffer('time', new_ts)
+        self.add_to_buffer('lfp', lfp)
+        self.add_to_buffer('acc', acc)
+        self.lfp_curve.setData(self.buffers['time'], self.buffers['lfp'])
+        self.rolled_in += n_pts
+        # FIXME: Windows should overlap
+        n_pts_analysis = 2 * 20000
+        if self.rolled_in >= n_pts_analysis: # FIXME: to parametrize
+            self.data_ready.emit({'lfp': self.buffers['lfp'][-self.rolled_in:],
+                                  'acc': self.buffers['acc'][-self.rolled_in:, :]})
+            self.rolled_in = 0
 
     def finished_cmd_th(self):
         self.intan_cmd_th.quit()
@@ -267,21 +324,11 @@ class LRD(UI):
         self.headstage.setEnabled(True)
         self.start_btn.setEnabled(False)
 
-    def receiving_data(self, data):
-        lfp = data['lfp']
-        n_lfp_pts = len(lfp)
-        acc = data['acc']
-        n_acc_pts = len(acc)
-        assert n_acc_pts == n_lfp_pts
-        self.buffers['lfp'] = np.roll(self.buffers['lfp'], -n_lfp_pts)
-        self.buffers['lfp'][-n_lfp_pts:] = lfp
-        self.buffers['acc'] = np.roll(self.buffers['acc'], -n_lfp_pts)
-        self.buffers['acc'][-n_lfp_pts:, :] = acc
-        self.data_ready.emit({'lfp': self.buffers['lfp'], 'acc': self.buffers['acc']})
-
     def start(self):
         super(LRD, self).start()
         self.intan_master.stop_pinging()
+        self.intan_master.set_ch_ix(self.ch_num.value())
+        self.intan_master.run()
         self.streamer.start_stream()
 
     def stop(self):

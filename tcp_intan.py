@@ -87,6 +87,10 @@ class IntanMaster(TcpHandler):
             self.sampling_rate = ret
             self.ping_timer.start(self.ping_delay)
 
+    def run(self):
+        cmd = 'set runmode run'
+        self.send_cmd(cmd)
+
     def start_pinging(self):
         self.ping_timer.start(self.ping_delay)
 
@@ -138,21 +142,19 @@ class Streamer(TcpHandler):
     def __init__(self, ip='127.0.0.1', port=5001, auto_retry=False, logname='LRDlog', n_channels=4):
         super().__init__(ip, port, auto_retry, logname)
         self.n_channels = n_channels
-        self.read_delay = 2
+        self.read_delay = 1
         self.socket.settimeout(1)
+        self.stopping = False
 
     def start_stream(self):
-        print('Starting stream')
         self.read_timer.start(self.read_delay)
 
     def stop_stream(self):
-        print('Stopping stream')
-        self.read_timer.stop()
+        self.stopping = True
 
     def read_data(self):
         try:
-            self.logger.debug('Reading data')
-            raw_data = self.socket.recv(200000)
+            raw_data = self.socket.recv(144*320*5)
         except socket.timeout:
             self.disconnect_ev.emit()
             self.read_timer.stop()
@@ -162,6 +164,10 @@ class Streamer(TcpHandler):
         if data is None:
             self.logger.error('Data error')
             self.data_error.emit()
+            if self.stopping:
+                self.stopping = False
+                self.read_timer.stop()
             return
         data = data.reshape((-1, self.n_channels))
-        self.data_ready.emit({'lfp': data[:, 0], 'acc': data[:, 1:]})
+        # self.data_ready.emit({'lfp': data[:, 0], 'acc': data[:, 1:]})
+        self.data_ready.emit({'data': data})
