@@ -7,7 +7,7 @@ from functools import partial
 from PyQt5 import QtWidgets, QtCore, QtGui
 import logging
 from logging.handlers import RotatingFileHandler
-from arduino import get_port, Trigger
+from arduino import get_ports, Trigger
 import serial
 
 
