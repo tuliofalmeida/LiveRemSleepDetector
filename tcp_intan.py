@@ -2,6 +2,7 @@ import logging
 import socket
 import utilities as u
 from PyQt5 import QtCore
+import re
 
 
 class TcpHandler(QtCore.QObject):
@@ -63,6 +64,7 @@ class IntanMaster(TcpHandler):
         self.ping_delay = 10000
         self.ping_timer.timeout.connect(self.ping)
         self.sampling_rate = None
+        self.sr_re = re.compile('([0-9]+)')
         self.c_ix = 1
         self.former_color = '#FF0000'
 
@@ -74,6 +76,10 @@ class IntanMaster(TcpHandler):
     def clear_all_data_outputs(self):
         self.send_cmd('execute clearalldataoutputs')
 
+    def connect(self):
+        super().connect()
+        self.ping()
+
     def ping(self):
         self.logger.debug(f'Pinging')
         cmd = 'get SampleRateHertz'
@@ -83,8 +89,9 @@ class IntanMaster(TcpHandler):
             self.attemp_connect = True
             self.connected = False
             self.disconnect_ev.emit()
-        else:
-            self.sampling_rate = ret
+        elif ret:
+            sr = self.sr_re.search(ret).group(1)
+            self.sampling_rate = sr
             self.ping_timer.start(self.ping_delay)
 
     def run(self):

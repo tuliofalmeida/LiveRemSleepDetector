@@ -7,6 +7,8 @@ from functools import partial
 from PyQt5 import QtWidgets, QtCore, QtGui
 import logging
 from logging.handlers import RotatingFileHandler
+from arduino import get_port, Trigger
+import serial
 
 
 class UI(QtWidgets.QMainWindow):
@@ -65,7 +67,7 @@ class UI(QtWidgets.QMainWindow):
         self.headstage.currentTextChanged.connect(self.update_headstage)
         options_lyt.addRow('Headstage port', self.headstage)
         self.ch_num = QtWidgets.QSpinBox()
-        self.ch_num.setRange(1, 128)
+        self.ch_num.setRange(0, 127)
         self.ch_num.valueChanged.connect(self.update_ch_num)
         options_lyt.addRow('Channel to use', self.ch_num)
         self.theta_low = QtWidgets.QDoubleSpinBox()
@@ -108,9 +110,12 @@ class UI(QtWidgets.QMainWindow):
         self.win_dur.setValue(2)
         self.win_dur.valueChanged.connect(self.win_dur_update)
         options_lyt.addRow('Window duration (s)', self.win_dur)
-
         self.sr_lbl = QtWidgets.QLabel('20000')
         options_lyt.addRow('Sampling rate (Hz)', self.sr_lbl)
+        self.arduino_port = QtWidgets.QComboBox(self)
+        self.init_ports()
+        self.arduino_port.currentTextChanged.connect(self.connect_arduino)
+        options_lyt.addRow('Arduino port', self.arduino_port)
         # Buttons
         v_lyt_right.addLayout(options_lyt)
         h_lyt_btn = QtWidgets.QHBoxLayout()
@@ -160,6 +165,15 @@ class UI(QtWidgets.QMainWindow):
         # TBD in main class
         pass
 
+    def connect_arduino(self):
+        # TBD in main class
+        pass
+
+    def init_ports(self):
+        ports = get_ports()
+        for p in ports:
+            self.arduino_port.addItem(f'{p.product} ({p.device})', p)
+
     def ratio_marker_moved(self):
         self.update_ratio(self.ratio_th_marker.value())
 
@@ -206,6 +220,7 @@ class UI(QtWidgets.QMainWindow):
 
 class LRD(UI):
     data_ready = QtCore.pyqtSignal(dict)
+    sleeping = QtCore.pyqtSignal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -243,6 +258,16 @@ class LRD(UI):
                         'theta': buff.copy(), 'delta': buff.copy(),
                         'lfp': buff.copy(), 'acc':  np.zeros((self.buf_size, 3)),
                         'time': buff.copy(), 't_ratio': buff.copy()}
+        # Arduino
+        self.port = None
+        self.arduino = None
+        # Check periodically if port is open
+        self.open_timer = QtCore.QTimer(self)
+        self.open_timer.timeout.connect(self.is_port_open)
+        self._is_port_open = False
+        self.ard_th = QtCore.QThread()
+        self.ard_th.finished.connect(self.finished_ard_th)
+        self.connect_arduino()
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         super().closeEvent(a0)
@@ -250,6 +275,7 @@ class LRD(UI):
         self.finished_cmd_th()
         self.finished_stream_th()
         self.finish_comp_th()
+        self.finished_ard_th()
 
     def comp_done(self, data):
         # Fixme: TBD
@@ -269,6 +295,31 @@ class LRD(UI):
         self.intan_master.headstage = self.headstage.currentText().lower()
         self.intan_master.connect()
         self.streamer.connect()
+        self.sr_lbl.setText(self.intan_master.sampling_rate)
+
+    def connect_arduino(self):
+        super().connect_arduino()
+        self.close_arduino()
+        device = self.arduino_port.currentData().device
+        try:
+            self.port = serial.Serial(device, timeout=3)
+            self.open_timer.start(1000)
+        except serial.SerialException as e:
+            msg = f'Opening of serial port {device} impossible: {e.strerror}'
+            self.logger.error(msg)
+
+    def close_arduino(self):
+        if self.port is not None:
+            self.port.close()
+
+    def is_port_open(self):
+        if self.port is not None:
+            self._is_port_open = self.port.is_open
+        if self._is_port_open:
+            self.open_timer.stop()
+            self.arduino = Trigger(self.port)
+            self.sleeping.connect(self.arduino.trig)
+            self.arduino.moveToThread(self.ard_th)
 
     def data_error(self):
         self.stop()
@@ -297,6 +348,10 @@ class LRD(UI):
             self.data_ready.emit({'lfp': self.buffers['lfp'][-self.rolled_in:],
                                   'acc': self.buffers['acc'][-self.rolled_in:, :]})
             self.rolled_in = 0
+
+    def finished_ard_th(self):
+        self.ard_th.quit()
+        self.ard_th.wait()
 
     def finished_cmd_th(self):
         self.intan_cmd_th.quit()
