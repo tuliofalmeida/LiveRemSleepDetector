@@ -4,7 +4,7 @@ from matplotlib.patches import Rectangle
 from scipy.io import loadmat
 from pathlib import Path
 from typing import Union
-from rem import bandpower
+from rem import bandpower, get_spectrum
 
 
 def load_data(dirpath: Union[str, Path], sr=1250):
@@ -64,15 +64,17 @@ def reshape_window(sig, t, sr, window_dur):
 def compute_power(lfp, t, sr=1250, window_dur=5):
     low_delta = 1
     high_delta = 3
-    low_theta = 4
+    low_theta = 7
     high_theta = 10
     lfp_seg, t_ratio = reshape_window(lfp, t, sr, window_dur)
 
     all_theta = []
     all_delta = []
     for sig in lfp_seg:
-        theta_power = bandpower(sig, sr, (low_theta, high_theta))
-        delta_power = bandpower(sig, sr, (low_delta, high_delta))
+        freqs, psd = get_spectrum(sig, sr, (2 / low_delta) * sr)
+        theta_power, delta_power = bandpower([(low_theta, high_theta), (low_delta, high_delta)],
+                                             freqs, psd)
+        # delta_power = bandpower((low_delta, high_delta), freqs, psd)
         all_theta.append(theta_power)
         all_delta.append(delta_power)
 
@@ -157,7 +159,7 @@ if __name__ == '__main__':
     lfp, st, t = load_data(test_path)
     s = lfp[:, 1]
     theta, delta, tseg = compute_power(s, t, window_dur=6)
-    is_rem, _ = is_sleep(theta, delta, tseg, max_gap=.5, min_dur=10)
+    is_rem, _ = is_sleep(theta, delta, tseg, max_gap=0, min_dur=0, th=0.45)
     still = is_still(lfp[:, 3:], t, window_dur=6)
     ep = combine_power_acc(is_rem, still, tseg)
     # FIXME: Fill gaps / delete small episodes also after combinations

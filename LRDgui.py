@@ -15,7 +15,7 @@ class UI(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
-        self.setWindowTitle('Livre REM sleep detector - Girardeau lab')
+        self.setWindowTitle('Live REM sleep detector - Girardeau lab')
         # Logging
         self.logname = 'LRDlog'
         self.logger = logging.getLogger(self.logname)
@@ -279,7 +279,7 @@ class LRD(UI):
 
     def comp_done(self, data):
         # Fixme: TBD
-        self.logger.debug('REM detection is done')
+        # self.logger.debug('REM detection is done')
         self.lfp_curve.setData(self.buffers['time'], self.buffers['lfp'])
         last_time = self.buffers['t_ratio'][-1]
         n_pts = len(data['lfp'])
@@ -300,7 +300,10 @@ class LRD(UI):
     def connect_arduino(self):
         super().connect_arduino()
         self.close_arduino()
-        device = self.arduino_port.currentData().device
+        port = self.arduino_port.currentData()
+        if port is None:
+            return
+        device = port.device
         try:
             self.port = serial.Serial(device, timeout=3)
             self.open_timer.start(1000)
@@ -334,7 +337,7 @@ class LRD(UI):
         lfp = data[:, 0]
         acc = data[:, 1:]
         n_pts = len(lfp)
-        dt = 1 / 20000
+        dt = 1 / int(self.intan_master.sampling_rate)
         last_time = self.buffers['time'][-1]
         new_ts = np.linspace(dt, dt * n_pts, n_pts) + last_time
         self.add_to_buffer('time', new_ts)

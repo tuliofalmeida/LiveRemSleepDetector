@@ -1,5 +1,6 @@
 import numpy as np
 from struct import Struct
+import logging
 
 
 frames_per_block = 128
@@ -8,6 +9,7 @@ size_sample = 2
 size_magic_number = 4
 waveform_bytes_per_frame = size_timestamp + size_sample
 waveform_bytes_per_block = frames_per_block * waveform_bytes_per_frame + size_magic_number
+logger = logging.getLogger('LRDlog')
 
 
 def parse_block(raw_data, n_channels=1):
@@ -27,6 +29,6 @@ def parse_block(raw_data, n_channels=1):
     r = np.array(all_block_struct.unpack(raw_data))
     blocks = r.reshape((num_blocks, -1))
     if not np.all(blocks[:, 0] == 0x2ef07a08):
-        raise ValueError('Error... magic number incorrect')
+        logger.error(f'Error... magic number incorrect. Data size: {len(raw_data)}')
     data = blocks[:, 2::n_channels+1].reshape(-1)
     return data

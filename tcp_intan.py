@@ -51,7 +51,7 @@ class TcpHandler(QtCore.QObject):
 
 
 class IntanMaster(TcpHandler):
-    COMMAND_BUFFER_sIZE = 1024
+    COMMAND_BUFFER_SIZE = 1024
     channel_set = QtCore.pyqtSignal(int)
 
     def __init__(self, ip='127.0.0.1', port=5000, auto_retry=False, logname='LRDlog',
@@ -106,7 +106,7 @@ class IntanMaster(TcpHandler):
 
     def read_data(self):
         try:
-            ret = self.socket.recv(self.COMMAND_BUFFER_sIZE)
+            ret = self.socket.recv(self.COMMAND_BUFFER_SIZE)
             s_ret = ret.decode('utf-8')
             return s_ret
         except (socket.timeout, BrokenPipeError, OSError):
@@ -152,6 +152,7 @@ class Streamer(TcpHandler):
         self.read_delay = 1
         self.socket.settimeout(1)
         self.stopping = False
+        self.buffer = b''
 
     def start_stream(self):
         self.read_timer.start(self.read_delay)
@@ -160,21 +161,27 @@ class Streamer(TcpHandler):
         self.stopping = True
 
     def read_data(self):
+        # FIXME: Get rid of this magic number
+        magic_size = 1540
         try:
-            raw_data = self.socket.recv(144*320*5)
+            # raw_data = self.socket.recv(144*320*5)
+            raw_data = self.socket.recv(50 * magic_size)
+            self.buffer += raw_data
         except socket.timeout:
             self.disconnect_ev.emit()
             self.read_timer.stop()
             return
-
-        data = u.parse_block(raw_data, self.n_channels)
+        if len(self.buffer) < magic_size:
+            return
+        data = u.parse_block(self.buffer[:magic_size], self.n_channels)
         if data is None:
-            self.logger.error('Data error')
+            self.logger.error(f'Data error {len(raw_data)}')
             self.data_error.emit()
             if self.stopping:
                 self.stopping = False
                 self.read_timer.stop()
             return
+        self.buffer = self.buffer[magic_size:]
         data = data.reshape((-1, self.n_channels))
         # self.data_ready.emit({'lfp': data[:, 0], 'acc': data[:, 1:]})
         self.data_ready.emit({'data': data})

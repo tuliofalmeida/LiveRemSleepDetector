@@ -72,7 +72,8 @@ def get_spectrum(data: np.ndarray, sf, nperseg):
 
     Returns
     -------
-
+    freqs
+    psd
     """
 
     # nperseg = (2 / low) * sf
