@@ -347,9 +347,6 @@ class LRD(UI):
         lfp = data[1, :]
         acc = data[2:, :]
         n_pts = len(lfp)
-        dt = 1 / int(self.intan_master.sampling_rate)
-        last_time = self.buffers['time'][-1]
-        # new_ts = np.linspace(dt, dt * n_pts, n_pts) + last_time
         self.add_to_buffer('time', ts)
         self.add_to_buffer('lfp', lfp)
         self.add_to_buffer('acc', acc.T)
