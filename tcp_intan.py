@@ -227,7 +227,7 @@ class Streamer(TcpHandler):
         self.queue = queue
         self.n_channels = n_channels
         self.read_delay = 15
-        # self.socket.settimeout(1)
+        self.socket.settimeout(1)  # Apparently necesary on Windows
         self.stopping = False
         self.buffer = DataFifo()
         self.parser_timer = QtCore.QTimer()
