@@ -247,7 +247,7 @@ class Streamer(TcpHandler):
                 self.read_timer.stop()
             return
         # self.buffer = self.buffer[magic_size:]
-        data = data.reshape((-1, self.n_channels))
+        # data = data.reshape((-1, self.n_channels+1))
         # self.data_ready.emit({'lfp': data[:, 0], 'acc': data[:, 1:]})
         # self.data_ready.emit({'data': data})
         self.queue.put(data)
@@ -267,7 +267,7 @@ class Streamer(TcpHandler):
             raw_data = self.socket.recv(200000)
             # raw_data = self.socket.recv(50 * self.magic_size * 3)
             self.buffer.write(raw_data)
-            self.logger.info(f'Buffer size: {self.buffer.size}, Data Size {len(raw_data)}')
+            # self.logger.info(f'Buffer size: {self.buffer.size}, Data Size {len(raw_data)}')
         except socket.timeout:
             self.disconnect_ev.emit()
             self.read_timer.stop()

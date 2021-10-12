@@ -39,5 +39,7 @@ def parse_block(raw_data, n_channels=1):
     blocks = r.reshape((num_blocks, -1))
     if not np.all(blocks[:, 0] == 0x2ef07a08):
         logger.error(f'Error... magic number incorrect. Data size: {len(raw_data)}')
-    data = blocks[:, 2::n_channels+1].reshape(-1)
+    samples = np.vstack([blocks[:, ix + 2::n_channels+1].reshape(-1) for ix in range(n_channels)])
+    timestamps = blocks[:, 1::n_channels+1].reshape(-1)
+    data = np.vstack((timestamps, samples))
     return data
