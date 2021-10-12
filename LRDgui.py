@@ -9,6 +9,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from arduino import get_ports, Trigger
 import serial
+from queue import Queue
 
 
 class UI(QtWidgets.QMainWindow):
@@ -224,6 +225,7 @@ class LRD(UI):
 
     def __init__(self) -> None:
         super().__init__()
+        self.data_queue = Queue()
         # Connection to Intan software for parameters
         self.intan_master = IntanMaster(auto_retry=True)
         self.intan_cmd_th = QtCore.QThread(self)
@@ -233,7 +235,7 @@ class LRD(UI):
         self.intan_master.connect_ev.connect(self.master_connected)
         self.intan_master.disconnect_ev.connect(self.master_disconnected)
         # Connection to Intan software for data
-        self.streamer = Streamer()
+        self.streamer = Streamer(self.data_queue)
         self.stream_th = QtCore.QThread(self)
         self.stream_th.finished.connect(self.finished_stream_th)
         self.stream_th.start()
@@ -241,6 +243,8 @@ class LRD(UI):
         self.streamer.data_ready.connect(self.receiving_data)
         self.streamer.connect_ev.connect(self.streamer_connected)
         self.streamer.data_error.connect(self.data_error)
+        self.queue_timer = QtCore.QTimer()
+        self.queue_timer.timeout.connect(self.fetch_data)
         # Data analysis
         self.comp_th = QtCore.QThread(self)
         self.rem_comp = REMDetector(None, self.delta_low.value(), self.delta_high.value(),
@@ -332,8 +336,10 @@ class LRD(UI):
         self.buffers[buffer_name] = np.roll(self.buffers[buffer_name], -n_pts)
         self.buffers[buffer_name][-n_pts:] = data
 
-    def receiving_data(self, data_dict: dict):
-        data = data_dict['data']
+    def fetch_data(self):
+        if self.data_queue.empty():
+            return
+        data = self.data_queue.get()
         lfp = data[:, 0]
         acc = data[:, 1:]
         n_pts = len(lfp)
@@ -343,14 +349,40 @@ class LRD(UI):
         self.add_to_buffer('time', new_ts)
         self.add_to_buffer('lfp', lfp)
         self.add_to_buffer('acc', acc)
-        self.lfp_curve.setData(self.buffers['time'], self.buffers['lfp'])
         self.rolled_in += n_pts
+        # self.logger.debug(f'n points received {n_pts}, {data.shape, data.dtype}')
+        self.lfp_curve.setData(self.buffers['time'], self.buffers['lfp'])
         # FIXME: Windows should overlap
-        n_pts_analysis = 2 * 20000
+        n_pts_analysis = 20000 * 2
         if self.rolled_in >= n_pts_analysis: # FIXME: to parametrize
-            self.data_ready.emit({'lfp': self.buffers['lfp'][-self.rolled_in:],
-                                  'acc': self.buffers['acc'][-self.rolled_in:, :]})
+
+            # self.lfp_curve.setData(new_ts, lfp)
+            # self.data_ready.emit({'lfp': self.buffers['lfp'][-self.rolled_in:],
+            #                       'acc': self.buffers['acc'][-self.rolled_in:, :]})
             self.rolled_in = 0
+
+    def receiving_data(self, data_dict: dict):
+        pass
+        # data = data_dict['data']
+        # lfp = data[:, 0]
+        # acc = data[:, 1:]
+        # n_pts = len(lfp)
+        # dt = 1 / int(self.intan_master.sampling_rate)
+        # last_time = self.buffers['time'][-1]
+        # new_ts = np.linspace(dt, dt * n_pts, n_pts) + last_time
+        # # self.add_to_buffer('time', new_ts)
+        # # self.add_to_buffer('lfp', lfp)
+        # # self.add_to_buffer('acc', acc)
+        # self.rolled_in += n_pts
+        # self.logger.debug(f'n points received {n_pts}, {data.shape, data.dtype}')
+        # # FIXME: Windows should overlap
+        # n_pts_analysis = 600  #  2 * 20000
+        # if self.rolled_in >= n_pts_analysis: # FIXME: to parametrize
+        #     # self.lfp_curve.setData(self.buffers['time'], self.buffers['lfp'])
+        #     self.lfp_curve.setData(new_ts, lfp)
+        #     # self.data_ready.emit({'lfp': self.buffers['lfp'][-self.rolled_in:],
+        #     #                       'acc': self.buffers['acc'][-self.rolled_in:, :]})
+        #     self.rolled_in = 0
 
     def finished_ard_th(self):
         self.ard_th.quit()
@@ -387,6 +419,7 @@ class LRD(UI):
         self.intan_master.stop_pinging()
         self.intan_master.set_ch_ix(self.ch_num.value())
         self.intan_master.run()
+        self.queue_timer.start(1)
         self.streamer.start_stream()
 
     def stop(self):

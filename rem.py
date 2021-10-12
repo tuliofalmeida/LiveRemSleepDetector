@@ -30,7 +30,7 @@ def lowpass(sig, cut, fs=1250, order=4):
 def downsample(raw_sig, factor=16):
     # This is the slowest part of it all
     # zero_phase = False ?
-    dwn = signal.decimate(raw_sig, factor, ftype='fir', axis=0)  # FIR is slower than IIR
+    dwn = signal.decimate(raw_sig, factor, ftype='iir', axis=0)  # FIR is slower than IIR
     return dwn
 
 
