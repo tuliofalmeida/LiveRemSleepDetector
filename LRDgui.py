@@ -307,6 +307,7 @@ class LRD(UI):
         self.close_arduino()
         port = self.arduino_port.currentData()
         if port is None:
+            self.logger.warning('No arduino plugged')
             return
         device = port.device
         try:
