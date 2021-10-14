@@ -351,10 +351,11 @@ class LRD(UI):
         self.add_to_buffer('lfp', lfp)
         self.add_to_buffer('acc', acc.T)
         self.rolled_in += n_pts
+        # self.logger.debug('Drawing')
         self.lfp_curve.setData(self.buffers['time'], self.buffers['lfp'])
         # FIXME: Windows should overlap
         n_pts_analysis = 20000 * 2
-        if self.rolled_in >= n_pts_analysis: # FIXME: to parametrize
+        if self.rolled_in >= n_pts_analysis:  # FIXME: to parametrize
             self.data_ready.emit({'lfp': self.buffers['lfp'][-self.rolled_in:],
                                   'acc': self.buffers['acc'][-self.rolled_in:, :]})
             self.rolled_in = 0
