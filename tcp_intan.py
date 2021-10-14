@@ -235,7 +235,7 @@ class Streamer(TcpHandler):
         self.parser_timer.timeout.connect(self.parse)
 
     def parse(self):
-        raw_data = self.buffer.read(1540*15)
+        raw_data = self.buffer.read(self.magic_size*15)
         if len(raw_data) == 0:
             return
         # self.logger.info('Parsing')
@@ -265,7 +265,7 @@ class Streamer(TcpHandler):
 
         try:
             # raw_data = self.socket.recv(144*320*5)
-            raw_data = self.socket.recv(1540*30)
+            raw_data = self.socket.recv(self.magic_size*30)
             # raw_data = self.socket.recv(50 * self.magic_size * 3)
             self.buffer.write(raw_data)
             # self.logger.info(f'Buffer size: {self.buffer.size}, Data Size {len(raw_data)}')
