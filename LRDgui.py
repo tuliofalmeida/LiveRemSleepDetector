@@ -399,9 +399,9 @@ class LRD(UI):
 
     def stop(self):
         super().stop()
-        self.streamer.stop_stream()
         self.intan_master.clear_all_data_outputs()
         self.intan_master.start_pinging()
+        self.streamer.stop_stream()
 
     def streamer_connected(self, status: bool):
         if status:

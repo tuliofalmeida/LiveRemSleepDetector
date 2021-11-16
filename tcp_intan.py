@@ -76,6 +76,7 @@ class IntanMaster(TcpHandler):
             self.send_cmd(cmd)
 
     def clear_all_data_outputs(self):
+        self.send_cmd('set runmode stop')
         self.send_cmd('execute clearalldataoutputs')
 
     def connect(self):
@@ -97,7 +98,7 @@ class IntanMaster(TcpHandler):
             self.ping_timer.start(self.ping_delay)
 
     def run(self):
-        cmd = 'set runmode run'
+        cmd = 'set runmode record'
         self.send_cmd(cmd)
 
     def start_pinging(self):

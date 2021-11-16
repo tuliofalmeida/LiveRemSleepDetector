@@ -142,3 +142,4 @@ cython_debug/
 /lfp_sample_and_sleep_scoring/States.mat
 /lfp_sample_and_sleep_scoring/sample.xml
 /lfp_sample_and_sleep_scoring/sample.lfp
+/raw_data.pck
