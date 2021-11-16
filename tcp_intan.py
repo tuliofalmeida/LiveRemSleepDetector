@@ -227,7 +227,8 @@ class Streamer(TcpHandler):
         super().__init__(ip, port, auto_retry, logname)
         self.queue = queue
         self.n_channels = n_channels
-        self.read_delay = 15
+        self.read_delay = 1
+        self.parse_delay = 3
         self.socket.settimeout(1)  # Apparently necesary on Windows
         self.stopping = False
         self.buffer = DataFifo()
@@ -235,7 +236,7 @@ class Streamer(TcpHandler):
         self.parser_timer.timeout.connect(self.parse)
 
     def parse(self):
-        raw_data = self.buffer.read(100000)
+        raw_data = self.buffer.read(self.magic_size*15)
         if len(raw_data) == 0:
             return
         # self.logger.info('Parsing')
@@ -255,7 +256,7 @@ class Streamer(TcpHandler):
 
     def start_stream(self):
         self.read_timer.start(self.read_delay)
-        self.parser_timer.start(20)
+        self.parser_timer.start(self.parse_delay)
 
     def stop_stream(self):
         self.stopping = True
@@ -265,7 +266,7 @@ class Streamer(TcpHandler):
 
         try:
             # raw_data = self.socket.recv(144*320*5)
-            raw_data = self.socket.recv(200000)
+            raw_data = self.socket.recv(self.magic_size*30)
             # raw_data = self.socket.recv(50 * self.magic_size * 3)
             self.buffer.write(raw_data)
             # self.logger.info(f'Buffer size: {self.buffer.size}, Data Size {len(raw_data)}')
