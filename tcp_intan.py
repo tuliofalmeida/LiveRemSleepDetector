@@ -4,7 +4,7 @@ import utilities as u
 from PyQt5 import QtCore
 import re
 from io import BytesIO
-from queue import Queue
+from multiprocessing import Queue
 
 
 class TcpHandler(QtCore.QObject):

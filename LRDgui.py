@@ -1,5 +1,3 @@
-import queue
-
 import numpy as np
 from rem_obj import REMDetector
 from tcp_intan import IntanMaster, Streamer
@@ -11,7 +9,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 from arduino import get_ports, Trigger
 import serial
-from queue import Queue, Empty
+from multiprocessing import Queue
+from queue import Empty
 
 
 class UI(QtWidgets.QMainWindow):
