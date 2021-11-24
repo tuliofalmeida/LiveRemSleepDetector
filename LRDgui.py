@@ -293,7 +293,7 @@ class LRD(UI):
         self.add_to_buffer('ratio', [data['ratio']])
         self.ratio_curve.setData(self.buffers['t_ratio'], self.buffers['ratio'])
         self.add_to_buffer('motion', data['motion'])
-        self.acc_curve.setData(self.buffers['time'], self.buffers['motion'])
+        self.acc_curve.setData(self.buffers['t_ratio'], self.buffers['motion'])
 
     def connect(self):
         self.intan_master.headstage = self.headstage.currentText().lower()
