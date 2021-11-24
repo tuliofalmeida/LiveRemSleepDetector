@@ -99,7 +99,9 @@ class IntanMaster(TcpHandler):
 
     def run(self):
         cmd = 'set runmode record'
-        self.send_cmd(cmd)
+        r = self.send_cmd(cmd)
+        if r:
+            self.send_cmd('set runmode run')
 
     def start_pinging(self):
         self.ping_timer.start(self.ping_delay)
