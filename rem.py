@@ -34,12 +34,12 @@ def downsample(raw_sig, factor=16):
     return dwn
 
 
-def delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=1250):
+def theta_delta(lfp, low_delta, high_delta, low_theta, high_theta, fs=1250):
     bands = [(low_delta, high_delta), (low_theta, high_theta)]
     nperseg = (2 / low_delta) * fs
     freqs, psd = get_spectrum(lfp, fs, nperseg)
     delta, theta = bandpower(bands, freqs, psd)
-    ratio = delta / theta
+    ratio = theta / delta
 
     return ratio, theta, delta
 
@@ -54,7 +54,7 @@ def speed(acc_sig):
 
 
 def is_sleeping(lfp, acc, low_delta=.1, high_delta=3, low_theta=4, high_theta=10, fs=1250):
-    ratio, theta, delta = delta_theta(lfp, low_delta, high_delta, low_theta, high_theta, fs=fs)
+    ratio, theta, delta = theta_delta(lfp, low_delta, high_delta, low_theta, high_theta, fs=fs)
     motion = speed(acc)
     return ratio, theta, delta, motion
 
