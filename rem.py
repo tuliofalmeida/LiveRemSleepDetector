@@ -40,16 +40,16 @@ def theta_delta(lfp, low_delta, high_delta, low_theta, high_theta, fs=1250):
     freqs, psd = get_spectrum(lfp, fs, nperseg)
     delta, theta = bandpower(bands, freqs, psd)
     ratio = theta / delta
-
     return ratio, theta, delta
 
-
 def speed(acc_sig):
-    acc = np.linalg.norm(acc_sig, axis=0)
+    acc = np.linalg.norm(acc_sig, axis=1)
     # med = np.median(acc)
     # mad = np.median(np.abs(acc-med))
     # acc = np.abs(acc-med) / mad
-    acc = np.abs(acc-acc.mean()) / acc.std()
+    # acc = np.abs(acc-acc.mean()) / acc.std()
+    # acc = np.mean(acc)
+    acc = np.mean(np.abs(np.diff(acc)))
     return acc
 
 

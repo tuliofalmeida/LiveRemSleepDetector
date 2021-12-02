@@ -11,7 +11,10 @@ def get_ports():
     List all possible COM ports
     """
     com_ports = list_ports.comports()
-    ports = [p for p in com_ports if p.product is not None and 'arduino' in p.product.lower()]
+    for p in com_ports:
+        print(p.product)
+    ports = [p for p in com_ports if p.pid is not None]
+
     return ports
 
 
@@ -21,5 +24,9 @@ class Trigger(QtCore.QObject):
         super().__init__()
         self.port = port
 
-    def trig(self):
-        self.port.write(b'1')
+    def trig(self,status):
+        if status == True:
+            self.port.write(b'1')
+        else:
+            self.port.write(b'0')
+

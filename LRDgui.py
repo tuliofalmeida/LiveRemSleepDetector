@@ -1,3 +1,4 @@
+from os import times
 import numpy as np
 from rem_obj import REMDetector
 from tcp_intan import IntanMaster, Streamer
@@ -11,6 +12,7 @@ from arduino import get_ports, Trigger
 import serial
 from multiprocessing import Queue
 from queue import Empty
+import time
 
 
 class UI(QtWidgets.QMainWindow):
@@ -60,7 +62,8 @@ class UI(QtWidgets.QMainWindow):
         v_lyt_right = QtWidgets.QVBoxLayout(right_w)
         # Logo
         logo_lab = QtWidgets.QLabel(self)
-        logo_lab.setPixmap(QtGui.QPixmap('RatHippoBLA.png').scaledToHeight(200))
+        logo_lab.setPixmap(QtGui.QPixmap(
+            'RatHippoBLA.png').scaledToHeight(200))
         v_lyt_right.addWidget(logo_lab)
         # Parameters
         options_lyt = QtWidgets.QFormLayout()
@@ -75,27 +78,31 @@ class UI(QtWidgets.QMainWindow):
         self.theta_low = QtWidgets.QDoubleSpinBox()
         self.theta_low.setValue(6)
         self.theta_low.setRange(1, 20)
-        self.theta_low.valueChanged.connect(partial(self.update_filter, 'theta_low'))
+        self.theta_low.valueChanged.connect(
+            partial(self.update_filter, 'theta_low'))
         options_lyt.addRow('Theta low frequency (Hz)', self.theta_low)
         self.theta_high = QtWidgets.QDoubleSpinBox()
         self.theta_high.setValue(10)
         self.theta_high.setRange(1, 20)
-        self.theta_high.valueChanged.connect(partial(self.update_filter, 'theta_high'))
+        self.theta_high.valueChanged.connect(
+            partial(self.update_filter, 'theta_high'))
         options_lyt.addRow('Theta high frequency (Hz)', self.theta_high)
         self.delta_low = QtWidgets.QDoubleSpinBox()
         self.delta_low.setRange(.1, 5)
         self.delta_low.setValue(1)
         options_lyt.addRow('Delta low frequency (Hz)', self.delta_low)
-        self.delta_low.valueChanged.connect(partial(self.update_filter, 'delta_low'))
+        self.delta_low.valueChanged.connect(
+            partial(self.update_filter, 'delta_low'))
         self.delta_high = QtWidgets.QDoubleSpinBox()
         self.delta_high.setRange(.1, 5)
         self.delta_high.setValue(4)
         options_lyt.addRow('Delta high frequency (Hz)', self.delta_high)
-        self.delta_high.valueChanged.connect(partial(self.update_filter, 'delta_high'))
+        self.delta_high.valueChanged.connect(
+            partial(self.update_filter, 'delta_high'))
         self.ratio_th = QtWidgets.QDoubleSpinBox()
         self.ratio_th.setSingleStep(0.1)
         self.ratio_th.setValue(0.45)
-        self.ratio_th.setRange(.1, 2)
+        self.ratio_th.setRange(.1, 50)
         self.ratio_th.valueChanged.connect(self.update_ratio)
         options_lyt.addRow('Delta / Theta ratio threshold', self.ratio_th)
         self.acc_th = QtWidgets.QDoubleSpinBox()
@@ -118,6 +125,12 @@ class UI(QtWidgets.QMainWindow):
         self.init_ports()
         self.arduino_port.currentTextChanged.connect(self.connect_arduino)
         options_lyt.addRow('Arduino port', self.arduino_port)
+
+        # INFO
+        self.rem_text = QtWidgets.QLabel()
+        self.rem_text.setText('')
+        options_lyt.addRow('Sleeping Info', self.rem_text)
+
         # Buttons
         v_lyt_right.addLayout(options_lyt)
         h_lyt_btn = QtWidgets.QHBoxLayout()
@@ -135,6 +148,7 @@ class UI(QtWidgets.QMainWindow):
         v_lyt_right.addLayout(h_lyt_btn)
         v_lyt_right.addSpacerItem(QtWidgets.QSpacerItem(1, 10, QtWidgets.QSizePolicy.Minimum,
                                                         QtWidgets.QSizePolicy.Expanding))
+
         # Finish placing stuff
         self._splitter.addWidget(left_wdg)
         self._splitter.addWidget(scroller)
@@ -148,8 +162,10 @@ class UI(QtWidgets.QMainWindow):
         self.acc_curve = self.acc_plot.getPlotItem().plot()
         self.ratio_plot.addItem(self.ratio_th_marker)
         self.acc_plot.addItem(self.acc_th_marker)
-        self.ratio_th_marker.sigPositionChangeFinished.connect(self.ratio_marker_moved)
-        self.acc_th_marker.sigPositionChangeFinished.connect(self.acc_marker_moved)
+        self.ratio_th_marker.sigPositionChangeFinished.connect(
+            self.ratio_marker_moved)
+        self.acc_th_marker.sigPositionChangeFinished.connect(
+            self.acc_marker_moved)
 
         # Logging end of init
         self.logger.info('Initialization of interface done.')
@@ -218,11 +234,14 @@ class UI(QtWidgets.QMainWindow):
     def win_dur_update(self, value):
         # TBD in main class
         pass
-
+    
+    def write_session_stimulations(self):
+        # In main class
+        pass
 
 class LRD(UI):
     data_ready = QtCore.pyqtSignal(dict)
-    sleeping = QtCore.pyqtSignal()
+    sleeping = QtCore.pyqtSignal(bool)
 
     def __init__(self) -> None:
         super().__init__()
@@ -254,14 +273,17 @@ class LRD(UI):
         self.rem_comp.moveToThread(self.comp_th)
         self.data_ready.connect(self.rem_comp.analyze_dict)
         self.rem_comp.data_ready.connect(self.comp_done)
+
         # Data buffers
         self.rolled_in = 0
         self.buf_size = int(2 * 20000 * 2)     # FIXME: to parametrize
+        self.short_buff_size = int(1800)
+        short_buff = np.zeros(self.short_buff_size)
         buff = np.zeros(self.buf_size)
-        self.buffers = {'ratio': buff.copy(), 'motion': buff.copy(),
+        self.buffers = {'ratio': short_buff.copy(), 'motion': short_buff.copy(),
                         'theta': buff.copy(), 'delta': buff.copy(),
                         'lfp': buff.copy(), 'acc':  np.zeros((self.buf_size, 3)),
-                        'time': buff.copy(), 't_ratio': buff.copy()}
+                        'time': buff.copy(), 't_ratio': short_buff.copy()}
         # Arduino
         self.port = None
         self.arduino = None
@@ -272,6 +294,12 @@ class LRD(UI):
         self.ard_th = QtCore.QThread()
         self.ard_th.finished.connect(self.finished_ard_th)
         self.connect_arduino()
+
+        # Stimulations
+        self.REM = False
+        self.current_rem_start = None
+        self.current_rem_end = None
+        self.REM_intervals = []
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         super().closeEvent(a0)
@@ -288,12 +316,36 @@ class LRD(UI):
         last_time = self.buffers['t_ratio'][-1]
         n_pts = len(data['lfp'])
         dt = 1 / 1250
+
         new_ts = np.linspace(dt, n_pts*dt, n_pts) + last_time
         self.add_to_buffer('t_ratio', [new_ts.mean()])
         self.add_to_buffer('ratio', [data['ratio']])
-        self.ratio_curve.setData(self.buffers['t_ratio'], self.buffers['ratio'])
-        self.add_to_buffer('motion', data['motion'])
+        self.add_to_buffer('motion', [data['motion']])
+
+        self.ratio_curve.setData(
+            self.buffers['t_ratio'], self.buffers['ratio'])
         self.acc_curve.setData(self.buffers['t_ratio'], self.buffers['motion'])
+
+        ''' 
+        Here I define a set of rules that will define if we are stimulating or not. 
+        '''
+
+        if np.all(self.buffers['motion'][-5:-1] < self.acc_th.value()) and np.any(self.buffers['ratio'][-4:-1] > self.ratio_th.value()):
+            self.logger.info(
+                'The animal seems to REM Sleep according to data')
+            self.sleeping.emit(True)
+            if self.REM is False:
+                self.REM = True
+                self.current_rem_start = self.buffers['time'][-1]
+            self.rem_text.setText('REM SLEEP')
+
+        else:
+            if self.REM is True:
+                self.REM = False
+                self.current_rem_end = self.buffers['time'][-1]
+                self.REM_intervals.append([self.current_rem_start,self.current_rem_end])
+            self.sleeping.emit(False)
+            self.rem_text.setText('')
 
     def connect(self):
         self.intan_master.headstage = self.headstage.currentText().lower()
@@ -310,6 +362,8 @@ class LRD(UI):
             return
         device = port.device
         try:
+            self.logger.info(
+                f'Tries to connect to {self.arduino_port.currentData()}')
             self.port = serial.Serial(device, timeout=3)
             self.open_timer.start(1000)
         except serial.SerialException as e:
@@ -326,6 +380,7 @@ class LRD(UI):
         if self._is_port_open:
             self.open_timer.stop()
             self.arduino = Trigger(self.port)
+            self.logger.info('Trigger instances created')
             self.sleeping.connect(self.arduino.trig)
             self.arduino.moveToThread(self.ard_th)
 
@@ -397,11 +452,15 @@ class LRD(UI):
         self.queue_timer.start(1)
         self.streamer.start_stream()
 
+        self.start_time = time.strftime('%y%m%d_%H%M%S')
+
     def stop(self):
         super().stop()
         self.intan_master.clear_all_data_outputs()
         self.intan_master.start_pinging()
         self.streamer.stop_stream()
+
+        self.write_session_stimulations()
 
     def streamer_connected(self, status: bool):
         if status:
@@ -411,6 +470,11 @@ class LRD(UI):
         super().update_ch_num(ch_ix)
         self.intan_master.set_ch_ix(ch_ix)
 
+    def write_session_stimulations(self):
+        super().write_session_stimulations()
+        intervals_array = np.array(self.REM_intervals)
+        np.save(f'REMStim-{self.start_time}',intervals_array)
+        self.REM_intervals = []
 
 def handle_exception(logname, exc_type, exc_value, exc_traceback):
     """Handle uncaught exceptions and print in logger."""
@@ -418,7 +482,8 @@ def handle_exception(logname, exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
-    logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+    logger.error("Uncaught exception", exc_info=(
+        exc_type, exc_value, exc_traceback))
 
 
 if __name__ == '__main__':
