@@ -330,7 +330,7 @@ class LRD(UI):
         Here I define a set of rules that will define if we are stimulating or not. 
         '''
 
-        if np.all(self.buffers['motion'][-5:-1] < self.acc_th.value()) and np.any(self.buffers['ratio'][-4:-1] > self.ratio_th.value()):
+        if np.all(self.buffers['motion'][-5:] < self.acc_th.value()) and np.mean(self.buffers['ratio'][-3:]) > self.ratio_th.value():
             self.logger.info(
                 'The animal seems to REM Sleep according to data')
             self.sleeping.emit(True)
