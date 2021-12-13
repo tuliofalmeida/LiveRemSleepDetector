@@ -6,6 +6,7 @@ import rem
 
 class REMDetector(QObject):
     data_ready = pyqtSignal(dict)
+    motion_ready = pyqtSignal(dict)
 
     def __init__(self, parent: Optional['QObject'] = None,
                  low_delta: float = .1, high_delta: float = 3,
@@ -21,6 +22,12 @@ class REMDetector(QObject):
 
     def analyze_dict(self, data):
         self.analyze(**data)
+
+    def acc_analysis(self, data_acc: dict):
+        acc = data_acc['acc']
+        acc = rem.downsample(acc)
+        motion = rem.speed(acc)
+        self.motion_ready.emit({'motion': motion})
 
     def analyze(self, lfp, acc):
         lfp = rem.downsample(lfp)

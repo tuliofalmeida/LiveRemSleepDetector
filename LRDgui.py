@@ -100,13 +100,15 @@ class UI(QtWidgets.QMainWindow):
         self.delta_high.valueChanged.connect(
             partial(self.update_filter, 'delta_high'))
         self.ratio_th = QtWidgets.QDoubleSpinBox()
-        self.ratio_th.setSingleStep(0.1)
+        self.ratio_th.setSingleStep(0.05)
         self.ratio_th.setValue(0.45)
-        self.ratio_th.setRange(.1, 50)
+        self.ratio_th.setRange(0, 50)
         self.ratio_th.valueChanged.connect(self.update_ratio)
         options_lyt.addRow('Delta / Theta ratio threshold', self.ratio_th)
         self.acc_th = QtWidgets.QDoubleSpinBox()
         self.acc_th.setValue(3)
+        self.acc_th.setMinimum(0)
+        self.acc_th.setSingleStep(0.01)
         self.acc_th.valueChanged.connect(self.update_acc)
         options_lyt.addRow('Motion threshold', self.acc_th)
         self.buffer_dur = QtWidgets.QSpinBox()
@@ -157,6 +159,8 @@ class UI(QtWidgets.QMainWindow):
         # Graphs
         self.ratio_th_marker = pg.InfiniteLine(0, 0, movable=True)
         self.acc_th_marker = pg.InfiniteLine(0, 0, movable=True)
+        self.acc_th_marker.setValue(self.acc_th.value())
+        self.ratio_th_marker.setValue(self.ratio_th.value())
         self.lfp_curve = self.lfp_plot.getPlotItem().plot()
         self.ratio_curve = self.ratio_plot.getPlotItem().plot()
         self.acc_curve = self.acc_plot.getPlotItem().plot()
@@ -239,8 +243,10 @@ class UI(QtWidgets.QMainWindow):
         # In main class
         pass
 
+
 class LRD(UI):
     data_ready = QtCore.pyqtSignal(dict)
+    acc_ready = QtCore.pyqtSignal(dict)
     sleeping = QtCore.pyqtSignal(bool)
 
     def __init__(self) -> None:
@@ -272,10 +278,13 @@ class LRD(UI):
         self.comp_th.start()
         self.rem_comp.moveToThread(self.comp_th)
         self.data_ready.connect(self.rem_comp.analyze_dict)
+        self.acc_ready.connect(self.rem_comp.acc_analysis)
         self.rem_comp.data_ready.connect(self.comp_done)
+        self.rem_comp.motion_ready.connect(self.motion_done)
 
         # Data buffers
         self.rolled_in = 0
+        self.acc_rolled_in = 0
         self.buf_size = int(2 * 20000 * 2)     # FIXME: to parametrize
         self.short_buff_size = int(1800)
         short_buff = np.zeros(self.short_buff_size)
@@ -353,6 +362,15 @@ class LRD(UI):
             self.REM_intervals.append([self.current_rem_start, self.current_rem_end])
             self.rem_text.setText('')
 
+    def motion_done(self, motion_dict: dict):
+        # Checking motion
+        motion = motion_dict['motion']
+        is_moving = motion > self.acc_th.value()
+        if is_moving and self.REM:
+            self.logger.info('Not REM sleep anymore according to accelerometer only')
+            # In case of movement, animal is not sleeping anymore
+            self.sleep(False)
+
     def connect(self):
         self.intan_master.headstage = self.headstage.currentText().lower()
         self.intan_master.connect()
@@ -411,13 +429,7 @@ class LRD(UI):
         self.add_to_buffer('lfp', lfp)
         self.add_to_buffer('acc', acc.T)
         self.rolled_in += n_pts
-        # Checking motion
-        motion_cond = np.all(self.buffers['motion'][-5:] < self.acc_th.value())
-        if not motion_cond and self.REM:
-            self.logger.info('Not REM sleep anymore according to accelerometer only')
-            # In case of movement, animal is not sleeping anymore
-            self.sleep(False)
-        # self.logger.debug('Drawing')
+        self.acc_rolled_in += n_pts
         self.lfp_curve.setData(self.buffers['time'], self.buffers['lfp'])
         # FIXME: Windows should overlap
         n_pts_analysis = 20000 * 2
@@ -425,6 +437,10 @@ class LRD(UI):
             self.data_ready.emit({'lfp': self.buffers['lfp'][-self.rolled_in:],
                                   'acc': self.buffers['acc'][-self.rolled_in:, :]})
             self.rolled_in = 0
+        elif self.acc_rolled_in >= 20000 // 2:
+            # self.logger.debug(f'Checking accelerometer early on: {self.acc_rolled_in}')
+            self.acc_ready.emit({'acc': self.buffers['acc'][-self.acc_rolled_in:, :]})
+            self.acc_rolled_in = 0
 
     def finished_ard_th(self):
         self.ard_th.quit()
