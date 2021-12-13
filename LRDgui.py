@@ -413,7 +413,7 @@ class LRD(UI):
         self.rolled_in += n_pts
         # Checking motion
         motion_cond = np.all(self.buffers['motion'][-5:] < self.acc_th.value())
-        if not motion_cond:
+        if not motion_cond and self.REM:
             self.logger.info('Not REM sleep anymore according to accelerometer only')
             # In case of movement, animal is not sleeping anymore
             self.sleep(False)
