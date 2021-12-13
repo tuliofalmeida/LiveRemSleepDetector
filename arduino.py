@@ -24,8 +24,8 @@ class Trigger(QtCore.QObject):
         super().__init__()
         self.port = port
 
-    def trig(self,status):
-        if status == True:
+    def trig(self, status):
+        if status:
             self.port.write(b'1')
         else:
             self.port.write(b'0')

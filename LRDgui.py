@@ -330,21 +330,27 @@ class LRD(UI):
         Here I define a set of rules that will define if we are stimulating or not. 
         '''
 
-        if np.all(self.buffers['motion'][-5:] < self.acc_th.value()) and np.mean(self.buffers['ratio'][-3:]) > self.ratio_th.value():
+        motion_cond = np.all(self.buffers['motion'][-5:] < self.acc_th.value())
+        lfp_cond = np.mean(self.buffers['ratio'][-3:]) > self.ratio_th.value()
+        if motion_cond and lfp_cond:
             self.logger.info(
                 'The animal seems to REM Sleep according to data')
-            self.sleeping.emit(True)
-            if self.REM is False:
-                self.REM = True
-                self.current_rem_start = self.buffers['time'][-1]
-            self.rem_text.setText('REM SLEEP')
-
+            self.sleep(True)
         else:
-            if self.REM is True:
-                self.REM = False
-                self.current_rem_end = self.buffers['time'][-1]
-                self.REM_intervals.append([self.current_rem_start,self.current_rem_end])
-            self.sleeping.emit(False)
+            self.logger.info(
+                'The animal seems to not be REM sleeping')
+            self.sleep(False)
+
+    def sleep(self, is_sleep):
+        self.sleeping.emit(is_sleep)  # Todo: Maybe do it less often (because acc checked often now)
+        if is_sleep and not self.REM:
+            self.REM = True
+            self.current_rem_start = self.buffers['time'][-1]
+            self.rem_text.setText('REM SLEEP')
+        elif not is_sleep and self.REM:
+            self.REM = False
+            self.current_rem_end = self.buffers['time'][-1]
+            self.REM_intervals.append([self.current_rem_start, self.current_rem_end])
             self.rem_text.setText('')
 
     def connect(self):
@@ -405,6 +411,12 @@ class LRD(UI):
         self.add_to_buffer('lfp', lfp)
         self.add_to_buffer('acc', acc.T)
         self.rolled_in += n_pts
+        # Checking motion
+        motion_cond = np.all(self.buffers['motion'][-5:] < self.acc_th.value())
+        if not motion_cond:
+            self.logger.info('Not REM sleep anymore according to accelerometer only')
+            # In case of movement, animal is not sleeping anymore
+            self.sleep(False)
         # self.logger.debug('Drawing')
         self.lfp_curve.setData(self.buffers['time'], self.buffers['lfp'])
         # FIXME: Windows should overlap
