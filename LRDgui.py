@@ -309,6 +309,8 @@ class LRD(UI):
         self.current_rem_start = None
         self.current_rem_end = None
         self.REM_intervals = []
+        self.threshold_values = []
+        self.ratio_tosave = []
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         super().closeEvent(a0)
@@ -341,14 +343,18 @@ class LRD(UI):
 
         motion_cond = np.all(self.buffers['motion'][-5:] < self.acc_th.value())
         lfp_cond = np.mean(self.buffers['ratio'][-3:]) > self.ratio_th.value()
+        self.ratio_tosave.append([np.mean(self.buffers['ratio'][-3:])])
+
         if motion_cond and lfp_cond:
             self.logger.info(
                 'The animal seems to REM Sleep according to data')
             self.sleep(True)
+            self.threshold_values.append([self.ratio_th.value(),self.acc_th.value(),1])
         else:
             self.logger.info(
                 'The animal seems to not be REM sleeping')
             self.sleep(False)
+            self.threshold_values.append([self.ratio_th.value(),self.acc_th.value(),0])
 
     def sleep(self, is_sleep):
         self.sleeping.emit(is_sleep)  # Todo: Maybe do it less often (because acc checked often now)
@@ -501,8 +507,14 @@ class LRD(UI):
     def write_session_stimulations(self):
         super().write_session_stimulations()
         intervals_array = np.array(self.REM_intervals)
+        threshold_array = np.array(self.threshold_values)
+        ratio_array = np.array(self.ratio_tosave)
         np.save(f'REMStim-{self.start_time}',intervals_array)
+        np.save(f'threshold-{self.start_time}',threshold_array.T)
+        np.save(f'ratio-{self.start_time}',ratio_array)
         self.REM_intervals = []
+        self.threshold_values = []
+        self.ratio_tosave = []
 
 def handle_exception(logname, exc_type, exc_value, exc_traceback):
     """Handle uncaught exceptions and print in logger."""
