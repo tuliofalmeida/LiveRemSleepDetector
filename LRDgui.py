@@ -352,7 +352,7 @@ class LRD(UI):
             self.threshold_values.append([self.ratio_th.value(),self.acc_th.value(),1])
         else:
             self.logger.info(
-                'The animal seems to not be REM sleeping')
+                f'The animal seems to not be REM sleeping')
             self.sleep(False)
             self.threshold_values.append([self.ratio_th.value(),self.acc_th.value(),0])
 
