@@ -434,11 +434,11 @@ class LRD(UI):
         # print('shape: ',acc.T.shape, 'smooth :', np.convolve( acc.T[:,0],np.ones(1000)/1000,mode='same'))
 
         # FIXME
-        # THIS IS LOWERING THE DRIFTS? ADJUST THE SMOOTHNESS. 1000 'works'
-        # 50% OF DELAY
-        # acc.T[:,0] = np.convolve( acc.T[:,0],np.ones(1000)/1000,mode='same')
-        # acc.T[:,1] = np.convolve( acc.T[:,1],np.ones(1000)/1000,mode='same')
-        # acc.T[:,2] = np.convolve( acc.T[:,2],np.ones(1000)/1000,mode='same')
+        # THIS IS LOWERING THE DRIFTS? ADJUST THE SMOOTHNESS. 1000 'works' - max possible, use 2
+        # 50% OF DELAY (maybe not, all version have this delay)
+        # acc.T[:,0] = np.convolve( acc.T[:,0],np.ones(2)/2,mode='same')
+        # acc.T[:,1] = np.convolve( acc.T[:,1],np.ones(2)/2,mode='same')
+        # acc.T[:,2] = np.convolve( acc.T[:,2],np.ones(2)/2,mode='same')
         # 220000/20000 = 11.0 sec
         n_pts = len(lfp)
         self.add_to_buffer('time', ts)
