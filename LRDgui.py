@@ -311,6 +311,7 @@ class LRD(UI):
         self.REM_intervals = []
         self.threshold_values = []
         self.ratio_tosave = []
+        self.ts_tosave = []
 
     def closeEvent(self, a0: QtGui.QCloseEvent) -> None:
         super().closeEvent(a0)
@@ -328,10 +329,13 @@ class LRD(UI):
         n_pts = len(data['lfp'])
         dt = 1 / 1250
 
+        # TODO SAVE THE TIME new_ts
         new_ts = np.linspace(dt, n_pts*dt, n_pts) + last_time
         self.add_to_buffer('t_ratio', [new_ts.mean()])
         self.add_to_buffer('ratio', [data['ratio']])
         self.add_to_buffer('motion', [data['motion']])
+
+        self.ts_tosave.append([new_ts.mean()])
 
         self.ratio_curve.setData(
             self.buffers['t_ratio'], self.buffers['ratio'])
@@ -340,10 +344,10 @@ class LRD(UI):
         ''' 
         Here I define a set of rules that will define if we are stimulating or not. 
         '''
-
         motion_cond = np.all(self.buffers['motion'][-5:] < self.acc_th.value())
         lfp_cond = np.mean(self.buffers['ratio'][-3:]) > self.ratio_th.value()
         self.ratio_tosave.append([np.mean(self.buffers['ratio'][-3:])])
+
 
         if motion_cond and lfp_cond:
             self.logger.info(
@@ -516,15 +520,26 @@ class LRD(UI):
 
     def write_session_stimulations(self):
         super().write_session_stimulations()
-        intervals_array = np.array(self.REM_intervals)
-        threshold_array = np.array(self.threshold_values)
-        ratio_array = np.array(self.ratio_tosave)
-        np.save(f'REMStim-{self.start_time}',intervals_array)
-        np.save(f'threshold-{self.start_time}',threshold_array.T)
-        np.save(f'ratio-{self.start_time}',ratio_array)
+
+        # intervals_array = np.array(self.REM_intervals)
+        # threshold_array = np.array(self.threshold_values)
+        # ratio_array = np.array(self.ratio_tosave)
+        # ts_array = np.array(self.ts_tosave)
+        thr_dict = {'Time':np.array(self.ts_tosave),
+                    'Intervals':np.array(self.REM_intervals),
+                    'ThrRatio':np.array(self.threshold_values).T[0],
+                    'ThrACC':np.array(self.threshold_values).T[1],
+                    'REM':np.array(self.threshold_values).T[2],
+                    'Ratio':np.array(self.ratio_tosave)}
+        # np.save(f'REMStim-{self.start_time}',intervals_array)
+        # np.save(f'threshold-{self.start_time}',threshold_array.T)
+        # np.save(f'ratio-{self.start_time}',ratio_array)
+        # np.save(f'Thresholds-{self.start_time}',all_data)
+        np.save(f'Thresholds-{self.start_time}',thr_dict)
         self.REM_intervals = []
         self.threshold_values = []
         self.ratio_tosave = []
+        self.ts_tosave = []
 
 def handle_exception(logname, exc_type, exc_value, exc_traceback):
     """Handle uncaught exceptions and print in logger."""
